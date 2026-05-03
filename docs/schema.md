@@ -125,6 +125,18 @@ B-tree fragmentation random UUIDv4 causes on large append-heavy tables
                           │  prescribed_sets │  rpe_min/max, weight_ref jsonb, rest_after
                           └──────────────────┘
 
+   Movement library (entitled): movements ───┬─── (1:N via movement_media) ───
+                                             │      role: primary_demo,
+                                             │            alternate_angle,
+                                             │            tutorial, cue, …
+                                             ▼
+                                       ┌─────────────┐
+                                       │ media_assets│  (Bunny / Mux / Sanity refs)
+                                       └─────────────┘
+                                             ▲
+                          (movements.primary_video_* are denormalized
+                           pointers to the primary_demo asset; trigger-maintained)
+
    Athlete side mirrors: workout_sessions → session_sections →
    session_groups → session_exercises → set_logs (with denormalized
    prescription columns frozen at session start, and user_id denormalized
@@ -652,27 +664,39 @@ hoists `alternate_names` and `secondary_muscles` to native arrays (Postgres
 `text[]`, queryable with `&&`), and adds a STORED tsvector column with a GIN
 index for the SQLite-FTS-equivalent search the PRD requires.
 
+The four `primary_video_*` columns are a **trigger-maintained
+denormalization** of the movement's primary demo video, kept on the row so
+list-view queries (Movement Library tab, prescription rendering, post-
+workout share card) can paint a thumbnail and start playback without
+joining `media_assets`. The canonical many-to-many relationship lives in
+§5.2's `movement_media`; the trigger that keeps the convenience columns in
+sync is in §10.3. Movements without a video leave all four columns null —
+they are intentionally nullable, since not every accessory or mobility
+movement has a recorded demo.
+
 ```sql
 create table movements (
-  id                 uuid primary key default uuid_generate_v7(),
-  cms_source_id      text,                     -- Sanity _id
-  cms_revision       text,
-  name               text not null,
-  alternate_names    text[] not null default '{}',
-  primary_muscle     text,
-  secondary_muscles  text[] not null default '{}',
-  equipment          text not null,            -- 'barbell' | 'db' | 'kb' | 'bodyweight' | 'machine' | 'bands' | 'cable' | 'mixed'
-  movement_pattern   text,                     -- 'squat' | 'hinge' | 'push' | 'pull' | 'carry' | 'locomotion' | 'rotation' | 'isometric'
-  plane              text,                     -- 'sagittal' | 'frontal' | 'transverse' | 'multi'
-  joint_action       text,                     -- coach prose
-  unilateral         boolean not null default false,
-  difficulty         integer,                  -- 1..5
-  coach_cues         text,                     -- markdown
-  video_provider     text,                     -- 'bunny' | 'mux' | null (no video yet)
-  video_id           text,                     -- libraryId/videoGuid OR muxPlaybackId
-  poster_url         text,
-  duration_seconds   integer,
-  active             boolean not null default true,
+  id                       uuid primary key default uuid_generate_v7(),
+  cms_source_id            text,                     -- Sanity _id
+  cms_revision             text,
+  name                     text not null,
+  alternate_names          text[] not null default '{}',
+  primary_muscle           text,
+  secondary_muscles        text[] not null default '{}',
+  equipment                text not null,            -- 'barbell' | 'db' | 'kb' | 'bodyweight' | 'machine' | 'bands' | 'cable' | 'mixed'
+  movement_pattern         text,                     -- 'squat' | 'hinge' | 'push' | 'pull' | 'carry' | 'locomotion' | 'rotation' | 'isometric'
+  plane                    text,                     -- 'sagittal' | 'frontal' | 'transverse' | 'multi'
+  joint_action             text,                     -- coach prose
+  unilateral               boolean not null default false,
+  difficulty               integer,                  -- 1..5
+  coach_cues               text,                     -- markdown
+  -- Denormalized convenience pointer to the primary demo (see movement_media).
+  -- Maintained by trigger; do not write directly. Null when the movement has no video.
+  primary_video_provider   text,                     -- 'bunny' | 'mux'
+  primary_video_id         text,                     -- libraryId/videoGuid OR muxPlaybackId
+  primary_video_poster_url text,
+  primary_video_duration_seconds integer,
+  active                   boolean not null default true,
   search_vector      tsvector generated always as (
     setweight(to_tsvector('english', coalesce(name, '')), 'A') ||
     setweight(to_tsvector('english', array_to_string(alternate_names, ' ')), 'B') ||
@@ -688,12 +712,13 @@ create table movements (
     'carry','locomotion','rotation','isometric','complex','jump','olympic','accessory')),
   check (plane is null or plane in ('sagittal','frontal','transverse','multi')),
   check (difficulty is null or difficulty between 1 and 5),
-  check (video_provider is null or video_provider in ('bunny','mux'))
+  check (primary_video_provider is null or primary_video_provider in ('bunny','mux'))
 );
 
 create index movements_active_idx          on movements (name) where active = true;
 create index movements_equipment_idx        on movements (equipment) where active = true;
 create index movements_pattern_idx          on movements (movement_pattern) where active = true;
+create index movements_with_video_idx       on movements (name) where active = true and primary_video_id is not null;
 create index movements_search_idx           on movements using gin (search_vector);
 create index movements_alt_names_idx        on movements using gin (alternate_names);
 create index movements_secondary_idx        on movements using gin (secondary_muscles);
@@ -705,7 +730,94 @@ maintenance dance and guarantees the index never lags an update.
 `setweight(…, 'A'/'B'/'C'/'D')` lets `ts_rank_cd` favour name matches over
 coach-cue matches for the search ranking.
 
-### 5.2 `substitution_rules`
+### 5.2 `media_assets` and `movement_media`
+
+The Persist movement library is video-first: the user expects every demo
+tap to surface a clip the coach shot. **Many movements have one or more
+videos associated with them** — a primary demo, often an alternate-angle
+camera, sometimes a tutorial breakdown for compound lifts (clean, snatch,
+muscle-up), and Phase 2 will add ~30s coach voice intros for hero
+sessions (PRD §4.2.1). Modeling video as a column on `movements` collapses
+all of those into one slot; modeling it as its own table lets a single
+clip be reused across movements (the same Spoto Press demo is referenced
+from "Spoto Press", "Spoto Bench", and the bench-press tutorial chain)
+and lets metadata travel with the asset rather than the relationship.
+
+`media_assets` carries the canonical record (provider + provider asset
+id, duration, aspect, language, captions); `movement_media` is the
+many-to-many join with a `role` enum so the renderer can find the
+"primary_demo" without sorting through tutorials.
+
+```sql
+create table media_assets (
+  id                  uuid primary key default uuid_generate_v7(),
+  kind                text not null,                  -- 'video' | 'audio' | 'image'
+  provider            text not null,                  -- 'bunny' | 'mux' | 'sanity'
+  provider_asset_id   text not null,                  -- bunnyVideoGuid | muxPlaybackId | sanity asset _id
+  bunny_library_id    text,                            -- only when provider='bunny'
+  poster_url          text,                            -- Sanity-hosted preview
+  duration_seconds    integer,
+  aspect_ratio        text,                            -- '16:9' | '9:16' | '1:1' | '4:3'
+  width_px            integer,
+  height_px           integer,
+  language            text not null default 'en',
+  caption             text,                            -- short coach caption shown beneath the player
+  transcript          text,                            -- captions/srt source for accessibility
+  active              boolean not null default true,
+  cms_source_id       text,                            -- Sanity _id of the wrapping object
+  cms_revision        text,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now(),
+  unique (provider, provider_asset_id),
+  check (kind in ('video','audio','image')),
+  check (provider in ('bunny','mux','sanity')),
+  check (aspect_ratio is null or aspect_ratio in ('16:9','9:16','1:1','4:3','21:9')),
+  check ((provider = 'bunny') = (bunny_library_id is not null))
+);
+
+create index media_assets_kind_active_idx       on media_assets (kind) where active = true;
+create index media_assets_cms_source_idx        on media_assets (cms_source_id) where cms_source_id is not null;
+
+create table movement_media (
+  movement_id      uuid not null references movements(id) on delete cascade,
+  media_asset_id   uuid not null references media_assets(id) on delete cascade,
+  role             text not null default 'primary_demo',
+  position         integer not null default 0,        -- ordering within a role group
+  notes            text,
+  created_at       timestamptz not null default now(),
+  primary key (movement_id, media_asset_id, role),
+  check (role in (
+    'primary_demo',       -- the canonical clip surfaced on tap
+    'alternate_angle',    -- side / overhead / etc.
+    'tutorial',           -- longer coach breakdown
+    'cue',                -- short cue clip ('squeeze the glutes')
+    'common_mistake',     -- what NOT to do
+    'setup',              -- bar setup / equipment positioning
+    'coach_intro'         -- Phase 2 30s session intro voice
+  ))
+);
+
+create index movement_media_movement_idx        on movement_media (movement_id, role, position);
+create index movement_media_asset_idx           on movement_media (media_asset_id);
+create unique index movement_media_one_primary
+  on movement_media (movement_id) where role = 'primary_demo';
+```
+
+The `(movement_id, role, position)` composite serves the hot "give me
+this movement's primary demo, then its alternate angles in order"
+lookup; the unique partial index enforces the "one primary demo per
+movement" invariant the convenience columns on `movements` rely on. A
+single asset can be attached to many movements (note the FK on
+`movement_media.media_asset_id`, not a unique), so coaches can re-use a
+clip across the catalog without duplicating it in Bunny.
+
+`mobility_flow_steps` already FK-references `movements`, so mobility
+clips inherit through the same path. For mobility-specific clips that
+aren't tied to a Movement Library entry (e.g., a flow-only "Pikes and
+Pancakes" intro), add `media_asset_id uuid references media_assets(id)`
+to `mobility_flow_steps` as a follow-up.
+
+### 5.3 `substitution_rules`
 
 PRD §5.3 verbatim, with `condition` extended to cover the full range observed
 in the persist PDFs ("Limited Equipment" travel mode, "Shoulder Limit" for
@@ -1511,9 +1623,9 @@ create policy body_metrics_owner on body_metrics
 Content tables (`tracks`, `programs`, `mesocycles`, `microcycles`,
 `days`, `sections`, `prescribed_groups`, `prescribed_exercises`,
 `prescribed_sets`, `coaching_notes`, `mobility_flows`,
-`mobility_flow_steps`, `movements`, `substitution_rules`) are filtered by
-entitlement via a security-definer helper that bypasses RLS on
-`entitlements` itself:
+`mobility_flow_steps`, `movements`, `movement_media`, `media_assets`,
+`substitution_rules`) are filtered by entitlement via a security-definer
+helper that bypasses RLS on `entitlements` itself:
 
 ```sql
 create or replace function has_entitlement(track text)
@@ -1633,6 +1745,72 @@ end $$;
 create trigger set_logs_prs_after_insert
   after insert on set_logs
   for each row execute function detect_prs();
+
+-- 3. Keep movements.primary_video_* in sync with the primary_demo movement_media row.
+create or replace function sync_movement_primary_video() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_movement_id uuid;
+begin
+  v_movement_id := coalesce(new.movement_id, old.movement_id);
+
+  update public.movements m
+     set primary_video_provider         = a.provider,
+         primary_video_id               = a.provider_asset_id,
+         primary_video_poster_url       = a.poster_url,
+         primary_video_duration_seconds = a.duration_seconds,
+         updated_at                     = now()
+    from public.movement_media mm
+    join public.media_assets a on a.id = mm.media_asset_id
+   where m.id = v_movement_id
+     and mm.movement_id = v_movement_id
+     and mm.role = 'primary_demo'
+     and a.active = true;
+
+  -- If no primary_demo row remains, null the convenience columns out.
+  if not exists (
+    select 1 from public.movement_media
+     where movement_id = v_movement_id and role = 'primary_demo'
+  ) then
+    update public.movements
+       set primary_video_provider = null,
+           primary_video_id = null,
+           primary_video_poster_url = null,
+           primary_video_duration_seconds = null,
+           updated_at = now()
+     where id = v_movement_id;
+  end if;
+
+  return null;
+end $$;
+
+create trigger movement_media_sync_primary
+  after insert or update or delete on movement_media
+  for each row execute function sync_movement_primary_video();
+
+-- Also re-run when the underlying media_asset changes (e.g., a new poster URL).
+create or replace function sync_movement_primary_video_on_asset() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  update public.movements m
+     set primary_video_provider         = new.provider,
+         primary_video_id               = new.provider_asset_id,
+         primary_video_poster_url       = new.poster_url,
+         primary_video_duration_seconds = new.duration_seconds,
+         updated_at                     = now()
+   where m.primary_video_id = new.provider_asset_id
+     and m.primary_video_provider = new.provider;
+  return new;
+end $$;
+
+create trigger media_assets_propagate_to_movements
+  after update on media_assets
+  for each row when (
+    new.provider <> old.provider or
+    new.provider_asset_id <> old.provider_asset_id or
+    new.poster_url is distinct from old.poster_url or
+    new.duration_seconds is distinct from old.duration_seconds
+  )
+  execute function sync_movement_primary_video_on_asset();
 ```
 
 Movement FTS is maintained by the STORED `tsvector` generated column — no
@@ -1645,7 +1823,7 @@ trigger needed.
 | `my_active_workout` | `workout_sessions`, `session_sections`, `session_groups`, `session_exercises`, `set_logs`, `readiness_surveys` (filtered to in-progress session)                                                                                                                                |
 | `my_history`        | `workout_sessions` (status≠in_progress), `session_sections`, `session_groups`, `session_exercises`, `set_logs`, `workout_summaries`, `prs`, `body_metrics`, `food_log_entries`, `saved_meals`, `saved_meal_items`, `macro_targets`, `user_charts`, `equipment_profiles`, `enrollments` |
 | `entitled_programs` | `programs`, `mesocycles`, `microcycles`, `days`, `sections`, `prescribed_groups`, `prescribed_exercises`, `prescribed_sets`, `coaching_notes` (all filtered by `has_entitlement(tracks.code)`)                                                                                  |
-| `movement_library`  | `movements` (active), `substitution_rules`                                                                                                                                                                                                                                       |
+| `movement_library`  | `movements` (active), `substitution_rules`, `movement_media`, `media_assets` (active, kind='video' or 'image')                                                                                                                                                                    |
 | `mobility_flows`    | `mobility_flows` (active), `mobility_flow_steps`                                                                                                                                                                                                                                  |
 | `subscriptions`     | `entitlements` (mine), `subscription_products` (active)                                                                                                                                                                                                                          |
 | **Server-only**     | `users`, `identities`, `webhook_events`, `tracks` (read via programs), `recipes`, `recipe_ingredients`, `foods` (queried on demand from server, not bulk-synced)                                                                                                                  |
@@ -1847,6 +2025,10 @@ These are intentionally left for follow-up rather than baked into v1:
 | "OPTIONAL - Active Recovery Work"                    | `days.is_optional=true`, `days.kind='active_recovery'`                                         |
 | "Work-In Lesson - Week 5"                            | `days.kind='lesson'`; `coaching_notes (scope='lesson', kind='lesson')` carries the prose       |
 | "Bridge Week"                                        | `microcycles.kind='bridge_week'` (or `'orphan_bridge'` when not under a block)                 |
+| Tap a movement name to play its demo (PRD §4.6)      | `movements.primary_video_*` for the fast list-view path; `movement_media (role='primary_demo')` joined to `media_assets` for full metadata |
+| Alternate-angle / tutorial / cue clips on a movement | Additional `movement_media` rows with `role` set accordingly                                    |
+| Same demo reused across multiple movements           | One `media_assets` row referenced from many `movement_media` rows (FK, not unique)              |
+| Phase 2 30-second coach voice intro for a session    | `media_assets (kind='audio')` linked via `movement_media (role='coach_intro')` on the day's hero movement, OR via a future `day_media` join |
 
 ---
 
