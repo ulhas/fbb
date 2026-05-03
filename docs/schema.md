@@ -81,55 +81,54 @@ B-tree fragmentation random UUIDv4 causes on large append-heavy tables
                                  │ 1
                                  │ *
                           ┌────────────┐
-                          │  programs  │  ("Pump Lift 5x — Apr–Jun 2026 block")
+                          │  programs  │  ("Pump Lift 5x — Apr–Jun 2026 release")
                           └──────┬─────┘
                                  │ 1
                                  │ *
                           ┌────────────┐
-                          │ mesocycles │  (12-week unit, ×4 per year per track)
+                          │ mesocycles │  (6-week unit; the "block" coaches refer to)
                           └──────┬─────┘
                                  │ 1
                                  │ *
-                  ┌──────────────┴────────────────┐
-                  │ *                            * │
-            ┌────────────┐                ┌────────────────┐
-            │   blocks   │ (6-week)       │  microcycles   │
-            └─────┬──────┘                │  kind ∈        │
-                  │ 1                     │   standard,    │
-                  │ *                     │   bridge_week, │
-            ┌────────────┐ ◄────── (block_id nullable for orphan bridges)
-            │ microcycles│                │   deload,      │
-            └─────┬──────┘                │   orphan_bridge│
-                  │ 1                     └───────┬────────┘
-                  │ *                             │
-                  │                          (mesocycle_id also nullable)
-            ┌────────────┐                        │
-            │    days    │  (Mon..Sun, kind: workout|active_recovery|lesson|rest)
-            └─────┬──────┘
-                  │ 1
-                  │ *
-            ┌────────────┐  letter A..G, kind warmup|strength_intensity|…|cooldown
-            │  sections  │  prescription_mode straight_sets|emom|amrap|for_time|…
-            └─────┬──────┘
-                  │ 1
-                  │ *
-            ┌─────────────────────┐  round_count, interval_seconds, cap_seconds,
-            │  prescribed_groups  │  rest_between_rounds, position
-            └─────┬───────────────┘
-                  │ 1
-                  │ *
-            ┌────────────────────────┐  movement_id, alternate_of_exercise_id,
-            │  prescribed_exercises  │  chained_into_next ("directly into")
-            └─────┬──────────────────┘
-                  │ 1
-                  │ *
-            ┌──────────────────┐  set_kind, reps_kind, reps_min/max, tempo,
-            │  prescribed_sets │  rpe_min/max, weight_ref jsonb, rest_after
-            └──────────────────┘
+                          ┌────────────────┐
+                          │  microcycles   │  one calendar week
+                          │  kind ∈ {       │  (mesocycle_id nullable for
+                          │   standard,    │   bridge weeks that don't belong
+                          │   bridge_week, │   to any mesocycle)
+                          │   deload,      │
+                          │   orphan_bridge│
+                          │  }             │
+                          └───────┬────────┘
+                                  │ 1
+                                  │ *
+                          ┌────────────┐
+                          │    days    │  (Mon..Sun, kind: workout|active_recovery|lesson|rest)
+                          └─────┬──────┘
+                                │ 1
+                                │ *
+                          ┌────────────┐  letter A..G, kind warmup|strength_intensity|…|cooldown
+                          │  sections  │  prescription_mode straight_sets|emom|amrap|for_time|…
+                          └─────┬──────┘
+                                │ 1
+                                │ *
+                          ┌─────────────────────┐  round_count, interval_seconds, cap_seconds,
+                          │  prescribed_groups  │  rest_between_rounds, position
+                          └─────┬───────────────┘
+                                │ 1
+                                │ *
+                          ┌────────────────────────┐  movement_id, alternate_of_exercise_id,
+                          │  prescribed_exercises  │  chained_into_next ("directly into")
+                          └─────┬──────────────────┘
+                                │ 1
+                                │ *
+                          ┌──────────────────┐  set_kind, reps_kind, reps_min/max, tempo,
+                          │  prescribed_sets │  rpe_min/max, weight_ref jsonb, rest_after
+                          └──────────────────┘
 
    Athlete side mirrors: workout_sessions → session_sections →
    session_groups → session_exercises → set_logs (with denormalized
-   prescription columns frozen at session start).
+   prescription columns frozen at session start, and user_id denormalized
+   onto every row for fast history queries and trivial RLS).
 ```
 
 Ten thousand-foot orientation: **content is immutable history, athlete data
@@ -210,43 +209,26 @@ create index programs_cms_source_idx      on programs (cms_source_id) where cms_
 
 ### 4.3 `mesocycles`
 
-12-week macro unit, ×4 per year per track. The "Volume and Intensity
-Progression" focus note in week 6 of every track confirms the 6-week rep-
-descending progression — a mesocycle is two of those.
+The 6-week training unit — what the persist PDFs treat as a "block" in
+coach-speak ("Over this six-week progression, reps gradually decrease while
+weights increase…" — Pump Lift 5x, Apr 20 focus note). One `program`
+contains a sequence of mesocycles separated by occasional Bridge Weeks. The
+PDFs' "Week 5 Day 1" through "Week 6 Day 7" in the late-April pages followed
+by "Week 1 Day 1" in May 4's pages is one mesocycle ending and the next
+beginning.
+
+There is no intermediate "block" entity above mesocycle — programs aggregate
+mesocycles directly. If a future grouping ever needs to surface (e.g.,
+quarterly themes), it can be modelled with a nullable `mesocycle_group_id`
+without disturbing existing rows.
 
 ```sql
 create table mesocycles (
   id              uuid primary key default uuid_generate_v7(),
   program_id      uuid not null references programs(id) on delete cascade,
-  position        integer not null,            -- 1..4 within the year
+  position        integer not null,            -- 1, 2, 3, … within the program
   display_name    text not null,               -- 'Mesocycle 2 — Hypertrophy Bias'
-  intent          text,                        -- 'hypertrophy' | 'strength' | 'conditioning' | 'mixed'
-  starts_on       date not null,
-  ends_on         date not null,
-  cms_source_id   text,
-  cms_revision    text,
-  created_at      timestamptz not null default now(),
-  updated_at      timestamptz not null default now(),
-  unique (program_id, position),
-  check (intent is null or intent in ('hypertrophy','strength','conditioning','mixed','deload'))
-);
-
-create index mesocycles_program_id_idx     on mesocycles (program_id);
-create index mesocycles_window_idx          on mesocycles (starts_on, ends_on);
-```
-
-### 4.4 `blocks`
-
-6-week sub-unit; a mesocycle has two of these. The persist PDFs' "Week 5
-Day 1" through "Week 6 Day 7" in the April pages and "Week 1 Day 1" in the
-May pages confirm a 6-week rotation.
-
-```sql
-create table blocks (
-  id              uuid primary key default uuid_generate_v7(),
-  mesocycle_id    uuid not null references mesocycles(id) on delete cascade,
-  position        integer not null,            -- 1 or 2 within the mesocycle
-  display_name    text not null,
+  intent          text,                        -- 'hypertrophy' | 'strength' | 'conditioning' | 'mixed' | 'deload'
   weeks_total     integer not null default 6,
   starts_on       date not null,
   ends_on         date not null,
@@ -254,31 +236,36 @@ create table blocks (
   cms_revision    text,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
-  unique (mesocycle_id, position),
-  check (weeks_total between 1 and 12)
+  unique (program_id, position),
+  check (intent is null or intent in ('hypertrophy','strength','conditioning','mixed','deload')),
+  check (weeks_total between 1 and 12),
+  check (ends_on = starts_on + (weeks_total * 7 - 1) * interval '1 day')
 );
 
-create index blocks_mesocycle_id_idx       on blocks (mesocycle_id);
+create index mesocycles_program_id_idx     on mesocycles (program_id);
+create index mesocycles_window_idx          on mesocycles (starts_on, ends_on);
 ```
 
-### 4.5 `microcycles` (with bridge-week semantics)
+`weeks_total` defaults to 6 but stays a column rather than a hard constant
+because workshops and special tracks (FBB 101 on-ramp is 8 sessions; some
+themed Hybrid Running blocks are 8 weeks) reuse the same hierarchy.
 
-A microcycle is one calendar week. **Both `block_id` and `mesocycle_id` are
-nullable** so a Bridge Week between blocks (or a one-off bridge week between
-mesocycles, or a true orphan bridge week declared by the coaching team) can
-exist without forcing it into a block it doesn't belong to. The user's brief
-explicitly called this out: *"sometimes a bridge week that doesn't belong to
-any cycle"*.
+### 4.4 `microcycles` (with bridge-week semantics)
+
+A microcycle is one calendar week. `mesocycle_id` is **nullable** so a
+Bridge Week between mesocycles, or a one-off orphan bridge week declared by
+the coaching team, can exist without being forced under a mesocycle it
+doesn't belong to. The user brief explicitly required this: *"sometimes a
+bridge week that doesn't belong to any cycle"*.
 
 ```sql
 create table microcycles (
   id              uuid primary key default uuid_generate_v7(),
   program_id      uuid not null references programs(id) on delete cascade,
   mesocycle_id    uuid     references mesocycles(id)   on delete set null,
-  block_id        uuid     references blocks(id)       on delete set null,
-  position        integer not null,            -- week-of-block when block_id is set; sequential within program otherwise
+  position        integer not null,            -- 1..weeks_total when mesocycle_id is set; program-sequential otherwise
   kind            text not null default 'standard',
-  display_name    text not null,               -- 'Week 5' or 'Bridge Week — Block 1 → Block 2'
+  display_name    text not null,               -- 'Week 5' or 'Bridge Week — Mesocycle 1 → Mesocycle 2'
   starts_on       date not null,
   ends_on         date not null,
   deload_intensity_pct integer,                -- 70 for typical bridge weeks; null for standard
@@ -289,26 +276,25 @@ create table microcycles (
   check (kind in ('standard','bridge_week','deload','orphan_bridge')),
   check (ends_on = starts_on + interval '6 days'),
   check (deload_intensity_pct is null or deload_intensity_pct between 40 and 100),
-  -- A standard microcycle must belong to a block. Non-standard kinds may be orphan.
+  -- A standard microcycle must belong to a mesocycle. Non-standard kinds may be orphan.
   check (
-    (kind = 'standard' and block_id is not null)
+    (kind = 'standard' and mesocycle_id is not null)
     or (kind <> 'standard')
   )
 );
 
 create index microcycles_program_id_idx     on microcycles (program_id);
 create index microcycles_mesocycle_id_idx   on microcycles (mesocycle_id);
-create index microcycles_block_id_idx       on microcycles (block_id);
 create index microcycles_window_idx         on microcycles (starts_on, ends_on);
 create index microcycles_bridge_idx         on microcycles (program_id, starts_on)
   where kind <> 'standard';
 ```
 
-The `microcycles_bridge_idx` partial index drives the "is this a bridge week?"
-acceptance-criteria check from PRD §4.11 cheaply: O(rows where kind ≠
-standard) instead of scanning all weeks.
+The `microcycles_bridge_idx` partial index drives the "is this a bridge
+week?" acceptance-criteria check from PRD §4.11 cheaply: O(rows where kind
+≠ standard) instead of scanning all weeks.
 
-### 4.6 `days`
+### 4.5 `days`
 
 A single training day. `kind = 'lesson'` is the Sunday "Work-In Lesson" days
 (lines 442–466 of `persist-042026.txt`), which carry only narrative — no
@@ -345,7 +331,7 @@ create index days_scheduled_on_idx         on days (scheduled_on);
 create index days_hero_movement_id_idx     on days (hero_movement_id) where hero_movement_id is not null;
 ```
 
-### 4.7 `sections`
+### 4.6 `sections`
 
 The lettered sub-blocks within a day (A = Daily Focus Note, B = Warmup, C/D
 = Strength Intensity 1/2, E = Strength Balance, F = Finisher / Conditioning,
@@ -402,7 +388,7 @@ create index sections_day_id_idx       on sections (day_id);
 create index sections_kind_idx         on sections (kind);
 ```
 
-### 4.8 `prescribed_groups`
+### 4.7 `prescribed_groups`
 
 A group is what shows up between blank lines in the PDFs: "3 sets" of one or
 more movements with their own per-round shape. The supersets, tri-sets, and
@@ -446,7 +432,7 @@ Storing min/max as separate columns instead of a `range` type keeps PowerSync
 serialisation trivial (PowerSync's JSON view doesn't natively serialize
 `int4range`) and lets indexes work cleanly.
 
-### 4.9 `prescribed_exercises` (with alternates + "directly into")
+### 4.8 `prescribed_exercises` (with alternates + "directly into")
 
 One row per movement-line in the group. The two FBB-specific patterns:
 
@@ -493,7 +479,7 @@ The `unique (group_id, position, alternate_of_exercise_id)` permits multiple
 alternates to share a position slot while still preventing accidental
 duplicate primary movements.
 
-### 4.10 `prescribed_sets`
+### 4.9 `prescribed_sets`
 
 The leaf of content authoring. One row per coach-authored set line:
 
@@ -579,7 +565,7 @@ The GIN index with `jsonb_path_ops` (per `advanced-jsonb-indexing`) is 2–3×
 smaller than the default `jsonb_ops` and supports the common `@>` containment
 queries (`weight_ref @> '{"kind":"relative_to_set"}'`).
 
-### 4.11 `coaching_notes`
+### 4.10 `coaching_notes`
 
 The PDFs surface narrative copy at multiple levels: per-day Daily Focus
 Note (lives on `sections.daily_focus_note` when the focus section is
@@ -614,7 +600,7 @@ the app layer resolves the target table from `scope`. The hot lookup —
 "give me every note for this day, section, or group" — is served by the
 `(scope, scope_id)` composite index.
 
-### 4.12 `mobility_flows` and `mobility_flow_steps`
+### 4.11 `mobility_flows` and `mobility_flow_steps`
 
 The "PERSIST RECOVERY MOBILITY SESSION" blocks (e.g., "Front Splits",
 "Pikes and Pancakes", "Squat Mobility") are first-class library content,
@@ -826,9 +812,15 @@ create unique index equipment_profiles_one_default
 
 ### 6.3 `enrollments`
 
-A user's choice of track + start mode + cadence. A single user can be
-enrolled in multiple tracks (e.g., Hybrid Running + a workshop) but only one
-"primary" enrollment surfaces on the home tab.
+A user's choice of track + start mode + cadence. **Multi-track is first-class**:
+a single user can hold any number of concurrent active enrollments (e.g.,
+Pump Lift 4x as their main strength track, Hybrid Running for cardio, plus a
+time-boxed Workshop). Each enrollment is independently scheduled (its own
+`started_on` anchor and `start_mode`) and produces its own `workout_sessions`,
+so two tracks running on the same calendar day surface as two distinct
+sessions on the home tab. The schema places no upper bound on concurrent
+active rows; the UI sorts the home tab by `home_sort_order` (lower = earlier),
+defaulting to insertion order when not set.
 
 ```sql
 create table enrollments (
@@ -838,20 +830,31 @@ create table enrollments (
   start_mode      text not null,                           -- 'jump_in_today' | 'start_from_beginning'
   started_on      date not null,
   ends_on         date,                                    -- null = open-ended
-  is_primary      boolean not null default false,
+  home_sort_order integer not null default 100,            -- lower = appears first on home tab
   equipment_profile_id uuid references equipment_profiles(id) on delete set null,
   status          text not null default 'active',          -- active | paused | ended
   metadata        jsonb not null default '{}'::jsonb,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
+  unique (user_id, track_id, started_on),                  -- a user may re-enroll later with a fresh anchor
   check (start_mode in ('jump_in_today','start_from_beginning')),
   check (status in ('active','paused','ended'))
 );
 
 create index enrollments_user_id_idx       on enrollments (user_id);
 create index enrollments_track_id_idx       on enrollments (track_id);
-create unique index enrollments_one_primary on enrollments (user_id) where is_primary = true and status = 'active';
+-- Hot path: "what active enrollments does this user have, in display order?"
+create index enrollments_user_active_idx
+  on enrollments (user_id, home_sort_order, started_on)
+  where status = 'active';
 ```
+
+Re-enrolling in the same track later (e.g., dropping Pump Lift 4x for a
+quarter and resuming) inserts a new row with a fresh `started_on` — the
+unique key `(user_id, track_id, started_on)` permits the history. Old
+enrollments stay around with `status='ended'` so historical sessions
+preserve their `enrollment_id` FK and the user's home-tab progression
+chart can show "you've been on Pump Lift 4x for 3 separate cycles".
 
 ### 6.4 `readiness_surveys`
 
@@ -923,6 +926,16 @@ create index workout_sessions_day_id_idx             on workout_sessions (day_id
 create index workout_sessions_enrollment_id_idx     on workout_sessions (enrollment_id) where enrollment_id is not null;
 create index workout_sessions_status_idx            on workout_sessions (user_id, status);
 
+-- "Show me every time I've done this exact day's workout" (per-cycle compare)
+create index workout_sessions_user_day_idx
+  on workout_sessions (user_id, day_id, started_at desc)
+  where day_id is not null and status = 'completed';
+
+-- "Show all my completed sessions for this enrollment, latest first" (per-track history tab)
+create index workout_sessions_user_enrollment_idx
+  on workout_sessions (user_id, enrollment_id, started_at desc)
+  where enrollment_id is not null and status = 'completed';
+
 -- PRD §4.8: single in-flight workout per user, server-enforced.
 create unique index workout_sessions_active_one
   on workout_sessions (user_id) where status = 'in_progress';
@@ -938,9 +951,16 @@ Mirror the prescription hierarchy with denormalized prescription fields.
 Each row carries the *frozen copy* of the prescription it was started against
 plus pointers back to the source IDs for analytics provenance.
 
+`user_id` is denormalized onto every session-scoped child table for the
+same reason as `set_logs`: trivial RLS policies, no multi-hop FK walks for
+history queries, and PowerSync upload checkpoints stay per-row simple. The
+client supplies `user_id` on insert; a trigger backfills from the parent
+session as a safety net (same shape as the `set_logs` trigger above).
+
 ```sql
 create table session_sections (
   id                  uuid primary key default uuid_generate_v7(),
+  user_id             uuid not null references users(id) on delete cascade,
   session_id          uuid not null references workout_sessions(id) on delete cascade,
   source_section_id   uuid references sections(id) on delete set null,  -- provenance, not authority
   position            integer not null,
@@ -955,9 +975,12 @@ create table session_sections (
   check (status in ('pending','in_progress','completed','skipped'))
 );
 create index session_sections_session_id_idx on session_sections (session_id);
+create index session_sections_user_id_idx     on session_sections (user_id);
 
 create table session_groups (
   id                          uuid primary key default uuid_generate_v7(),
+  user_id                     uuid not null references users(id) on delete cascade,
+  session_id                  uuid not null references workout_sessions(id) on delete cascade,
   session_section_id          uuid not null references session_sections(id) on delete cascade,
   source_group_id             uuid references prescribed_groups(id) on delete set null,
   position                    integer not null,
@@ -979,9 +1002,12 @@ create table session_groups (
   check (status in ('pending','in_progress','completed','skipped'))
 );
 create index session_groups_section_idx on session_groups (session_section_id);
+create index session_groups_user_id_idx  on session_groups (user_id);
 
 create table session_exercises (
   id                       uuid primary key default uuid_generate_v7(),
+  user_id                  uuid not null references users(id) on delete cascade,
+  session_id               uuid not null references workout_sessions(id) on delete cascade,
   session_group_id         uuid not null references session_groups(id) on delete cascade,
   source_exercise_id       uuid references prescribed_exercises(id) on delete set null,
   movement_id              uuid not null references movements(id) on delete restrict,
@@ -998,6 +1024,7 @@ create table session_exercises (
 );
 create index session_exercises_group_idx           on session_exercises (session_group_id);
 create index session_exercises_movement_idx         on session_exercises (movement_id);
+create index session_exercises_user_id_idx          on session_exercises (user_id);
 ```
 
 ### 6.7 `set_logs`
@@ -1005,9 +1032,21 @@ create index session_exercises_movement_idx         on session_exercises (moveme
 The canonical logged-set table the PRD names in §9.2 sync streams. One row
 per set (or per side, for unilateral movements — the `side` column).
 
+`user_id` is **denormalized** onto every row. That decision is load-bearing
+for the two hot history queries: (a) the previous-set inline overlay during
+logging (PRD §4.3, "Last: 130 × 8 RPE 7 (3 days ago)"), which needs all of
+*this user's* prior logs of *this movement* ordered by recency without
+joining through `workout_sessions`; and (b) the per-cycle comparison ("how
+did I do this exact prescribed set last time I hit it"), which needs all of
+*this user's* logs against a given `source_set_id` over time. Both are
+served by composite indexes on `(user_id, …)`. The denormalization also
+collapses the RLS policy from an `EXISTS` join into a single-column equality
+check (§10.1), which is materially cheaper at high write volume.
+
 ```sql
 create table set_logs (
   id                       uuid primary key default uuid_generate_v7(),
+  user_id                  uuid not null references users(id) on delete cascade,
   session_id               uuid not null references workout_sessions(id) on delete cascade,
   session_exercise_id      uuid not null references session_exercises(id) on delete cascade,
   source_set_id            uuid references prescribed_sets(id) on delete set null,
@@ -1039,19 +1078,48 @@ create table set_logs (
   check (duration_seconds is null or duration_seconds >= 0)
 );
 
-create index set_logs_session_id_idx          on set_logs (session_id, recorded_at);
+create index set_logs_session_id_idx           on set_logs (session_id, recorded_at);
 create index set_logs_exercise_id_idx          on set_logs (session_exercise_id, position, side);
-create index set_logs_movement_recent_idx      on set_logs (movement_id, recorded_at desc);
--- For "previous-set" lookup during logging (PRD §4.3 Prev-set):
-create index set_logs_user_movement_idx        on set_logs (session_id, movement_id, side, position);
+
+-- Previous-set inline overlay (PRD §4.3): "all my prior sets of this movement, latest first"
+create index set_logs_user_movement_idx        on set_logs (user_id, movement_id, recorded_at desc)
+  where outcome <> 'skipped';
+
+-- Per-cycle comparison: "last time I did THIS exact prescribed set"
+create index set_logs_user_source_idx          on set_logs (user_id, source_set_id, recorded_at desc)
+  where source_set_id is not null;
+
+-- Per-exercise trend chart (PRD §7.1 "per-exercise weight & e1RM trend")
+create index set_logs_user_movement_completed_idx
+  on set_logs (user_id, movement_id, recorded_at desc)
+  where outcome = 'completed' and weight_kg is not null;
 ```
 
-The `(movement_id, recorded_at desc)` composite serves the per-exercise
-trend query the charts surface needs (PRD §7.1 "per-exercise weight & e1RM
-trend"). It's deliberately *not* prefixed by `user_id` because RLS already
-constrains the result set to the calling user — Postgres uses the index
-without the leftmost user_id when RLS adds it as an implicit filter. (See
-§10.1.)
+The `outcome <> 'skipped'` and `outcome = 'completed' AND weight_kg IS NOT
+NULL` partial filters are deliberate (rule `query-partial-indexes`): the
+prev-set overlay should never surface a skipped row, and the trend chart
+needs values it can plot. Skipped sets stay in the table but out of these
+indexes, keeping them small.
+
+A trigger backfills `set_logs.user_id` from the parent `workout_sessions`
+on insert if the client omits it; in steady state the client supplies it
+directly so the trigger is a safety net only:
+
+```sql
+create or replace function set_logs_fill_user_id() returns trigger
+language plpgsql as $$
+begin
+  if new.user_id is null then
+    select user_id into new.user_id from workout_sessions where id = new.session_id;
+  end if;
+  return new;
+end $$;
+
+create trigger set_logs_user_id_default
+  before insert on set_logs
+  for each row when (new.user_id is null)
+  execute function set_logs_fill_user_id();
+```
 
 ### 6.8 `workout_summaries`
 
@@ -1405,25 +1473,27 @@ wrapping in a SELECT lets Postgres evaluate the function once per query
 instead of once per row.
 
 ```sql
--- Template applied to every user-owned table (set_logs shown):
+-- Tables with a direct user_id column (the simple, fast case): set_logs,
+-- workout_sessions, body_metrics, food_log_entries, prs, user_charts, etc.
 alter table set_logs enable row level security;
 
-create policy set_logs_owner_all on set_logs
+create policy set_logs_owner on set_logs
   for all to authenticated
-  using (
-    exists (
-      select 1 from workout_sessions s
-      where s.id = set_logs.session_id
-        and s.user_id = (select auth.uid())
-    )
-  )
-  with check (
-    exists (
-      select 1 from workout_sessions s
-      where s.id = set_logs.session_id
-        and s.user_id = (select auth.uid())
-    )
-  );
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+```
+
+All session-scoped child tables (`session_sections`, `session_groups`,
+`session_exercises`) carry the same denormalized `user_id` per §6.6, so
+their policies are identical:
+
+```sql
+alter table session_exercises enable row level security;
+
+create policy session_exercises_owner on session_exercises
+  for all to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 ```
 
 Tables with a direct `user_id` column (the simple case) get the
@@ -1438,7 +1508,7 @@ create policy body_metrics_owner on body_metrics
   with check ((select auth.uid()) = user_id);
 ```
 
-Content tables (`tracks`, `programs`, `mesocycles`, `blocks`, `microcycles`,
+Content tables (`tracks`, `programs`, `mesocycles`, `microcycles`,
 `days`, `sections`, `prescribed_groups`, `prescribed_exercises`,
 `prescribed_sets`, `coaching_notes`, `mobility_flows`,
 `mobility_flow_steps`, `movements`, `substitution_rules`) are filtered by
@@ -1493,8 +1563,12 @@ re-summarising for the index-review pass:
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Single active workout enforcement                         | `workout_sessions_active_one (user_id) where status='in_progress'` (PRD §4.8)                  |
 | Crash-recovery banner (PRD §4.10)                         | `workout_sessions_idle_idx (last_activity_at) where status='in_progress'`                      |
-| Previous-set overlay during logging (PRD §4.3)            | `set_logs_user_movement_idx (session_id, movement_id, side, position)`                         |
-| Per-exercise trend chart (PRD §7.1)                       | `set_logs_movement_recent_idx (movement_id, recorded_at desc)`                                 |
+| Previous-set overlay during logging (PRD §4.3)            | `set_logs_user_movement_idx (user_id, movement_id, recorded_at desc) where outcome <> 'skipped'` |
+| Per-cycle compare ("last time I did this exact set")      | `set_logs_user_source_idx (user_id, source_set_id, recorded_at desc)`                          |
+| Per-exercise trend chart (PRD §7.1)                       | `set_logs_user_movement_completed_idx (user_id, movement_id, recorded_at desc) where outcome='completed' and weight_kg is not null` |
+| Per-day session history ("every time I've done this day") | `workout_sessions_user_day_idx (user_id, day_id, started_at desc) where status='completed'`    |
+| Per-track history tab                                     | `workout_sessions_user_enrollment_idx (user_id, enrollment_id, started_at desc) where status='completed'` |
+| Active enrollments in display order                       | `enrollments_user_active_idx (user_id, home_sort_order, started_on) where status='active'`     |
 | PR feed                                                   | `prs_user_achieved_idx (user_id, achieved_at desc)`                                            |
 | Bridge-week deload nudge                                  | `microcycles_bridge_idx (program_id, starts_on) where kind <> 'standard'`                      |
 | Movement search                                           | `movements_search_idx using gin (search_vector)` + `movements_name_trgm_idx using gin (name gin_trgm_ops)` |
@@ -1524,16 +1598,13 @@ create trigger tracks_touch_updated before update on tracks
 -- 2. PR detection on set_logs insert (PRD §7.4)
 create or replace function detect_prs() returns trigger
 language plpgsql security definer set search_path = '' as $$
-declare v_user uuid;
 begin
-  select user_id into v_user from public.workout_sessions where id = new.session_id;
-  if v_user is null then return new; end if;
-
   -- Rep-bucketed RM: one row per (user, movement, '<n>RM') for n in (1,3,5,8,10,12)
   -- Insert only if new value beats the existing.
-  if new.weight_kg is not null and new.reps is not null and new.reps between 1 and 12 then
+  if new.weight_kg is not null and new.reps is not null and new.reps between 1 and 12
+     and new.outcome = 'completed' then
     insert into public.prs (user_id, movement_id, pr_kind, value, set_log_id, achieved_at)
-    values (v_user, new.movement_id,
+    values (new.user_id, new.movement_id,
             (case
               when new.reps = 1 then '1RM' when new.reps <= 3 then '3RM'
               when new.reps <= 5 then '5RM' when new.reps <= 8 then '8RM'
@@ -1547,7 +1618,7 @@ begin
 
     -- Epley e1RM
     insert into public.prs (user_id, movement_id, pr_kind, value, set_log_id, achieved_at)
-    values (v_user, new.movement_id, 'e1RM',
+    values (new.user_id, new.movement_id, 'e1RM',
             new.weight_kg * (1 + new.reps / 30.0), new.id, new.recorded_at)
     on conflict (user_id, movement_id, pr_kind)
       do update set value = excluded.value,
@@ -1573,7 +1644,7 @@ trigger needed.
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `my_active_workout` | `workout_sessions`, `session_sections`, `session_groups`, `session_exercises`, `set_logs`, `readiness_surveys` (filtered to in-progress session)                                                                                                                                |
 | `my_history`        | `workout_sessions` (status≠in_progress), `session_sections`, `session_groups`, `session_exercises`, `set_logs`, `workout_summaries`, `prs`, `body_metrics`, `food_log_entries`, `saved_meals`, `saved_meal_items`, `macro_targets`, `user_charts`, `equipment_profiles`, `enrollments` |
-| `entitled_programs` | `programs`, `mesocycles`, `blocks`, `microcycles`, `days`, `sections`, `prescribed_groups`, `prescribed_exercises`, `prescribed_sets`, `coaching_notes` (all filtered by `has_entitlement(tracks.code)`)                                                                          |
+| `entitled_programs` | `programs`, `mesocycles`, `microcycles`, `days`, `sections`, `prescribed_groups`, `prescribed_exercises`, `prescribed_sets`, `coaching_notes` (all filtered by `has_entitlement(tracks.code)`)                                                                                  |
 | `movement_library`  | `movements` (active), `substitution_rules`                                                                                                                                                                                                                                       |
 | `mobility_flows`    | `mobility_flows` (active), `mobility_flow_steps`                                                                                                                                                                                                                                  |
 | `subscriptions`     | `entitlements` (mine), `subscription_products` (active)                                                                                                                                                                                                                          |
@@ -1612,7 +1683,111 @@ rows via PowerSync's normal mechanism.
   $$;
   ```
 
-### 10.6 Open questions
+### 10.6 History query patterns
+
+The PRD's "previous-set inline" requirement (§4.3) and the broader "show me
+how I did this last time" UX rest on a small set of canonical queries that
+the indexes above are sized for. They are documented here so the
+client-side query layer (GRDB on iOS, Room on Android) can mirror them
+verbatim.
+
+**1. Previous-set overlay during logging** (PRD §4.3 caption "Last: 130 ×
+8 RPE 7 (3 days ago)")
+
+```sql
+select weight_kg, reps, rpe, recorded_at
+from set_logs
+where user_id = $1
+  and movement_id = $2
+  and side       = $3            -- 'both' | 'left' | 'right'
+  and outcome   <> 'skipped'
+order by recorded_at desc
+limit 1;
+-- Uses set_logs_user_movement_idx
+```
+
+**2. Per-cycle compare — "last time I did this exact prescribed set"**
+(drives the `weight_ref={"kind":"relative_to_set","target_position":N}`
+suggestion and the prev-cycle comparison card)
+
+```sql
+select weight_kg, reps, rpe, side, recorded_at
+from set_logs
+where user_id      = $1
+  and source_set_id = $2
+order by recorded_at desc
+limit 10;
+-- Uses set_logs_user_source_idx
+```
+
+**3. Full session history for a given prescribed day** ("show me every
+time I've done Pump Lift 5x — Week 5 Day 1")
+
+```sql
+select id, started_at, completed_at, total_volume_kg, rpe_average
+from workout_sessions
+where user_id = $1
+  and day_id  = $2
+  and status  = 'completed'
+order by started_at desc;
+-- Uses workout_sessions_user_day_idx
+```
+
+**4. Per-track session history tab** ("all my completed sessions on this
+enrollment, latest first")
+
+```sql
+select id, started_at, display_name, microcycle_kind, total_volume_kg
+from workout_sessions
+where user_id        = $1
+  and enrollment_id  = $2
+  and status         = 'completed'
+order by started_at desc
+limit 50;
+-- Uses workout_sessions_user_enrollment_idx
+-- Cursor pagination per data-pagination rule:
+--   AND (started_at, id) < ($cursor_started_at, $cursor_id)
+```
+
+**5. Per-exercise trend chart** (PRD §7.1 weight & e1RM trend)
+
+```sql
+select recorded_at::date as day,
+       max(weight_kg)                                       as max_weight_kg,
+       max(weight_kg * (1 + reps / 30.0))                   as max_e1rm,
+       sum(weight_kg * reps)                                as volume_kg
+from set_logs
+where user_id     = $1
+  and movement_id = $2
+  and outcome     = 'completed'
+  and weight_kg   is not null
+  and recorded_at >= now() - interval '90 days'
+group by day
+order by day;
+-- Uses set_logs_user_movement_completed_idx
+```
+
+**6. Multi-track home tab — today's sessions across all active enrollments**
+
+```sql
+select e.id as enrollment_id, t.display_name as track_name,
+       d.id as day_id, d.display_name as day_name, d.kind, d.is_optional
+from enrollments e
+join tracks t       on t.id = e.track_id
+-- compute today's day under each enrollment's anchor (app-side or via SQL fn)
+join days d         on d.scheduled_on = compute_day_for_enrollment(e.id, current_date)
+where e.user_id = $1
+  and e.status  = 'active'
+order by e.home_sort_order, e.started_on;
+-- Uses enrollments_user_active_idx
+```
+
+The `compute_day_for_enrollment` SQL function (or an app-side equivalent)
+maps `(enrollment.start_mode, enrollment.started_on, current_date)` to the
+correct `days.id` accounting for "Jump In Today" (use the calendar
+microcycle) vs "Start From Beginning" (use weeks-since-anchor).
+
+### 10.7 Open questions
 
 These are intentionally left for follow-up rather than baked into v1:
 
@@ -1644,7 +1819,9 @@ These are intentionally left for follow-up rather than baked into v1:
 | Coach-authored phrase                                | Where it lives                                                                                |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | "Pump Lift 5x"                                       | `tracks` (`family='pump_lift'`, `cadence='5x'`)                                                |
-| "Week 5 Day 1 — Persist PUMP LIFT 5x"                | `microcycles.position=5`, `days.position=1`, `days.display_name`                               |
+| "Apr–Jun 2026 release of Pump Lift 5x"               | `programs` (one per quarterly release)                                                          |
+| "Six-week progression / Week 5 Day 1"                | `mesocycles.weeks_total=6`, `microcycles.position=5`, `days.position=1`                         |
+| "Bridge Week — Mesocycle 1 → Mesocycle 2"            | `microcycles.kind='bridge_week'` (mesocycle_id may be null for orphans)                         |
 | "A) Daily Focus Note"                                | `sections.kind='focus_note'` + `sections.daily_focus_note`                                     |
 | "B) Warmup (8 min)"                                  | `sections.kind='warmup'`, `target_duration_min=8`, `prescription_mode='rounds'`                |
 | "3 Rounds"                                           | `prescribed_groups.round_count_min=3`, `round_count_max=3`                                     |
