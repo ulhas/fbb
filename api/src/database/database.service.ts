@@ -14,7 +14,7 @@ export class DatabaseService {
   constructor(private readonly configService: ConfigService) {
     // Initialize the database connection here
     const pool = new Pool({
-      connectionString: configService.get('DATABASE_URL'),
+      connectionString: configService.get('database.url'),
     });
 
     this.db = drizzle(pool, { schema });
