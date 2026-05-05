@@ -81,6 +81,15 @@ export class TrainingWeeksService {
     return { jobId: job.id };
   }
 
+  // Wipes every microcycle for a calendar week. Source upload-jobs are kept
+  // (audit trail + the original PDF stays addressable); the admin can
+  // re-upload to rebuild. Returns the count of microcycles deleted.
+  async deleteWeek(
+    weekStartsOn: string,
+  ): Promise<{ deletedCount: number }> {
+    return this.persister.deleteWeek(weekStartsOn);
+  }
+
   // Re-parses only the days that failed last time, using the PDF buffer we
   // saved on enqueue. Reuses the same job row (no new id) — status flips
   // back to 'running' for the duration. Days that succeed land in the

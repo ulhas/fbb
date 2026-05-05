@@ -813,16 +813,16 @@ function MatrixView({
 
   return (
     <div className="overflow-auto rounded-[var(--radius-card)] bg-card shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
-      <table className="w-full border-separate border-spacing-0 text-xs">
+      <table className="w-full table-fixed border-separate border-spacing-0 text-xs">
         <thead>
           <tr>
-            <th className="sticky left-0 top-0 z-20 w-[180px] min-w-[180px] border-b border-divider bg-card px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+            <th className="sticky left-0 top-0 z-20 w-[140px] border-b border-divider bg-card px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
               Track
             </th>
             {weekDates.map((iso) => (
               <th
                 key={iso}
-                className="sticky top-0 z-10 min-w-[160px] border-b border-divider bg-card px-3 py-2 text-left"
+                className="sticky top-0 z-10 border-b border-divider bg-card px-3 py-2 text-left"
               >
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
                   {weekdayLabel(iso)}
@@ -877,7 +877,7 @@ function MatrixView({
                             onClick={() => onPickCell(t, iso)}
                           />
                         ) : (
-                          <div className="h-full min-h-[68px] bg-surface/30" />
+                          <div className="h-[92px] bg-surface/30" />
                         )}
                       </td>
                     )
@@ -911,7 +911,7 @@ function MatrixCell({
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-full min-h-[68px] w-full cursor-pointer flex-col items-start gap-1 border-l-4 px-3 py-2 text-left transition-colors hover:bg-fbb-orange-tint/30 ${stripeClass[tone]}`}
+      className={`flex h-[92px] w-full cursor-pointer flex-col items-start gap-1 overflow-hidden border-l-4 px-3 py-2 text-left transition-colors hover:bg-fbb-orange-tint/30 ${stripeClass[tone]}`}
     >
       <Badge tone={tone}>{humanize(day.kind)}</Badge>
       {sectionCount > 0 ? (

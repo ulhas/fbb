@@ -10,16 +10,21 @@ import { useNavigate } from 'react-router-dom'
 
 import type { TrainingWeekSummary } from '@fbb/types'
 
-// TanStack Table presentation. Single Responsibility: take an array of week
-// summaries and render a sortable, navigable table. No fetching, no storage.
+import { Badge } from './ui/Badge'
+
+// TanStack Table presentation. Single Responsibility: render a sortable,
+// navigable table of week summaries. Delete is delegated to the parent so the
+// confirm modal lives at page scope (state-management for the modal there
+// avoids prop-drilling row identity through the cell).
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
-  const d = new Date(`${iso}T00:00:00`)
+  const d = new Date(`${iso}T00:00:00Z`)
   return d.toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    timeZone: 'UTC',
   })
 }
 
@@ -40,10 +45,20 @@ function formatRelative(iso: string): string {
   })
 }
 
+function humanize(s: string | null): string {
+  if (!s) return ''
+  return s
+    .split('_')
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(' ')
+}
+
 export function TrainingWeeksTable({
   records,
+  onRequestDelete,
 }: {
   records: TrainingWeekSummary[]
+  onRequestDelete: (record: TrainingWeekSummary) => void
 }) {
   const navigate = useNavigate()
   const [sorting, setSorting] = useState<SortingState>([
@@ -55,7 +70,7 @@ export function TrainingWeeksTable({
       {
         id: 'week_starts_on',
         accessorKey: 'week_starts_on',
-        header: 'Week of',
+        header: 'Week',
         cell: ({ row }) => (
           <div className="flex flex-col">
             <span className="text-[15px] font-semibold text-ink">
@@ -68,25 +83,56 @@ export function TrainingWeeksTable({
         ),
       },
       {
-        id: 'tracks',
-        accessorKey: 'track_count',
-        header: 'Tracks',
-        cell: ({ getValue }) => (
-          <span className="tabular-nums text-ink">{String(getValue())}</span>
-        ),
+        id: 'cycle',
+        accessorKey: 'week_position',
+        header: 'Cycle',
+        cell: ({ row }) =>
+          row.original.week_position != null ? (
+            <Badge tone="neutral">W{row.original.week_position}</Badge>
+          ) : (
+            <span className="text-[12px] text-ink-muted">—</span>
+          ),
       },
       {
-        id: 'days',
-        accessorKey: 'day_count',
-        header: 'Days',
-        cell: ({ getValue }) => (
-          <span className="tabular-nums text-ink">{String(getValue())}</span>
-        ),
+        id: 'kind',
+        accessorKey: 'microcycle_kind',
+        header: 'Kind',
+        cell: ({ row }) => {
+          const k = row.original.microcycle_kind
+          if (!k) return <span className="text-[12px] text-ink-muted">—</span>
+          // Deload weeks are programmatically meaningful — call them out.
+          const tone = k === 'deload' ? 'orange' : 'info'
+          return <Badge tone={tone}>{humanize(k)}</Badge>
+        },
+      },
+      {
+        id: 'coverage',
+        accessorKey: 'parsed_day_count',
+        header: 'Coverage',
+        cell: ({ row }) => {
+          const { parsed_day_count, day_count, underparsed_day_count } =
+            row.original
+          const allClean = underparsed_day_count === 0
+          return (
+            <div className="flex items-center gap-2">
+              <span
+                className={`tabular-nums text-[13px] font-semibold ${
+                  allClean ? 'text-success' : 'text-warning'
+                }`}
+              >
+                {parsed_day_count}/{day_count}
+              </span>
+              {underparsed_day_count > 0 ? (
+                <Badge tone="warning">⚠ {underparsed_day_count}</Badge>
+              ) : null}
+            </div>
+          )
+        },
       },
       {
         id: 'last_persisted_at',
         accessorKey: 'last_persisted_at',
-        header: 'Last persisted',
+        header: 'Updated',
         cell: ({ getValue }) => (
           <span
             className="text-xs text-ink-muted"
@@ -96,8 +142,26 @@ export function TrainingWeeksTable({
           </span>
         ),
       },
+      {
+        id: 'actions',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRequestDelete(row.original)
+            }}
+            aria-label={`Delete week of ${row.original.week_starts_on}`}
+            className="grid h-8 w-8 cursor-pointer place-items-center rounded-full text-ink-muted transition-colors hover:bg-danger/10 hover:text-danger"
+          >
+            <TrashIcon />
+          </button>
+        ),
+      },
     ],
-    [],
+    [onRequestDelete],
   )
 
   const table = useReactTable({
@@ -127,7 +191,7 @@ export function TrainingWeeksTable({
                       <button
                         type="button"
                         onClick={h.column.getToggleSortingHandler()}
-                        className="inline-flex items-center gap-1 hover:text-ink"
+                        className="inline-flex cursor-pointer items-center gap-1 hover:text-ink"
                       >
                         {flexRender(h.column.columnDef.header, h.getContext())}
                         <SortIndicator sort={sort} />
@@ -177,4 +241,26 @@ function SortIndicator({ sort }: { sort: 'asc' | 'desc' | false }) {
   if (sort === 'asc') return <span className="text-fbb-orange">↑</span>
   if (sort === 'desc') return <span className="text-fbb-orange">↓</span>
   return null
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M3 6h18" />
+      <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+    </svg>
+  )
 }

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import type { Logger } from 'winston';
 
@@ -303,6 +303,64 @@ export class TrainingWeekPersister {
         .delete(coachingNotes)
         .where(and(eq(coachingNotes.scope, 'day'), eq(coachingNotes.scopeId, dayId)));
     });
+  }
+
+  // Wipes every microcycle for the given calendar week. Cascades handle
+  // days → sections → groups → exercises → sets; coaching_notes is
+  // polymorphic (no FK on scope_id) so we delete by scope_id explicitly
+  // before the parent rows go. Programs/tracks/movements are kept (they're
+  // reusable across weeks). Returns the number of microcycles removed —
+  // 0 means no week was persisted under that starts_on.
+  async deleteWeek(weekStartsOn: string): Promise<{ deletedCount: number }> {
+    const microRows = await this.database.db
+      .select({ id: microcycles.id })
+      .from(microcycles)
+      .where(eq(microcycles.startsOn, weekStartsOn));
+    if (microRows.length === 0) return { deletedCount: 0 };
+    const microIds = microRows.map((m) => m.id);
+
+    const dayRows = await this.database.db
+      .select({ id: days.id })
+      .from(days)
+      .where(inArray(days.microcycleId, microIds));
+    const dayIds = dayRows.map((d) => d.id);
+
+    const sectionIds = dayIds.length
+      ? (
+          await this.database.db
+            .select({ id: sections.id })
+            .from(sections)
+            .where(inArray(sections.dayId, dayIds))
+        ).map((s) => s.id)
+      : [];
+
+    // UUIDs don't collide across tables, so a single IN list covers any
+    // coaching_notes scoped to the microcycle / day / section we're about
+    // to delete. Notes scoped to groups are rare; if they exist their
+    // scope_id won't be in this list and they'll orphan — acceptable for
+    // now, revisit if it bites.
+    const orphanCleanupIds = [...microIds, ...dayIds, ...sectionIds];
+
+    await this.database.db.transaction(async (tx) => {
+      if (orphanCleanupIds.length > 0) {
+        await tx
+          .delete(coachingNotes)
+          .where(inArray(coachingNotes.scopeId, orphanCleanupIds));
+      }
+      await tx
+        .delete(microcycles)
+        .where(inArray(microcycles.id, microIds));
+    });
+
+    this.logger.info({
+      msg: 'training_week.deleted',
+      weekStartsOn,
+      microcycleCount: microIds.length,
+      dayCount: dayIds.length,
+      sectionCount: sectionIds.length,
+    });
+
+    return { deletedCount: microIds.length };
   }
 
   // Persists one day's sections/groups/exercises/sets/coaching_notes against

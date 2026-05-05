@@ -28,6 +28,17 @@ export interface TrainingWeekSummaryRow {
   week_ends_on: string;
   track_count: number;
   day_count: number;
+  // Days with at least one prescribed_exercise. The denominator for coverage.
+  parsed_day_count: number;
+  // Days that *should* have exercises but don't — the actionable list. Rest /
+  // mobility / lesson days are excluded since they legitimately lack exercises.
+  underparsed_day_count: number;
+  // Tracks share `position` and `kind` within a calendar week (programmed
+  // together), so the aggregate coalesces to a single value via max(); null
+  // only if the week has no microcycles (shouldn't happen for a row that
+  // lists itself here).
+  week_position: number | null;
+  microcycle_kind: string | null;
   last_persisted_at: string;
 }
 
@@ -54,17 +65,52 @@ export class TrainingWeeksReadService {
   // Aggregates microcycles by `starts_on`. Each unique date is one training
   // week; counts roll up across all tracks for that week. Newest first.
   async listWeeks(limit = 100): Promise<TrainingWeekSummaryRow[]> {
+    // Per-day exercise count via CTE. LEFT JOINs all the way down so a day
+    // with no sections still produces a row with exercise_count = 0 — that's
+    // exactly the "underparsed" signal we want to surface.
+    const dayExercises = this.database.db.$with('day_exercises').as(
+      this.database.db
+        .select({
+          dayId: days.id,
+          microcycleId: days.microcycleId,
+          kind: days.kind,
+          exerciseCount: sql<number>`count(${prescribedExercises.id})::int`.as(
+            'exercise_count',
+          ),
+        })
+        .from(days)
+        .leftJoin(sections, eq(sections.dayId, days.id))
+        .leftJoin(
+          prescribedGroups,
+          eq(prescribedGroups.sectionId, sections.id),
+        )
+        .leftJoin(
+          prescribedExercises,
+          eq(prescribedExercises.groupId, prescribedGroups.id),
+        )
+        .groupBy(days.id, days.microcycleId, days.kind),
+    );
+
     const rows = await this.database.db
+      .with(dayExercises)
       .select({
         weekStartsOn: microcycles.startsOn,
         weekEndsOn: microcycles.endsOn,
         trackCount: sql<number>`count(distinct ${programs.trackId})::int`,
-        dayCount: sql<number>`count(distinct ${days.id})::int`,
+        dayCount: sql<number>`count(distinct ${dayExercises.dayId})::int`,
+        parsedDayCount: sql<number>`(count(distinct ${dayExercises.dayId}) filter (where ${dayExercises.exerciseCount} > 0))::int`,
+        underparsedDayCount: sql<number>`(count(distinct ${dayExercises.dayId}) filter (where ${dayExercises.exerciseCount} = 0 and ${dayExercises.kind} in ('workout', 'active_recovery')))::int`,
+        // Tracks share position + kind within a calendar week (all programmed
+        // together) — max() collapses the redundant rows; if a divergence
+        // ever sneaks in we'll silently coalesce to one of them, which is
+        // fine for an admin overview.
+        weekPosition: sql<number | null>`max(${microcycles.position})`,
+        microcycleKind: sql<string | null>`max(${microcycles.kind})`,
         lastPersistedAt: sql<Date>`max(${microcycles.updatedAt})`,
       })
       .from(microcycles)
       .leftJoin(programs, eq(microcycles.programId, programs.id))
-      .leftJoin(days, eq(days.microcycleId, microcycles.id))
+      .leftJoin(dayExercises, eq(dayExercises.microcycleId, microcycles.id))
       .groupBy(microcycles.startsOn, microcycles.endsOn)
       .orderBy(desc(microcycles.startsOn))
       .limit(limit);
@@ -74,6 +120,10 @@ export class TrainingWeeksReadService {
       week_ends_on: r.weekEndsOn,
       track_count: r.trackCount,
       day_count: r.dayCount,
+      parsed_day_count: r.parsedDayCount,
+      underparsed_day_count: r.underparsedDayCount,
+      week_position: r.weekPosition,
+      microcycle_kind: r.microcycleKind,
       last_persisted_at: new Date(r.lastPersistedAt).toISOString(),
     }));
   }

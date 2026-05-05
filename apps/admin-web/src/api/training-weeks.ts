@@ -38,6 +38,16 @@ export async function fetchTrainingWeek(
   return (await res.json()) as TrainingWeekDetail
 }
 
+// Wipes the persisted week (microcycles + cascades). Idempotent on the
+// upload-job side — the job + PDF stay intact, so re-uploading rebuilds.
+export async function deleteTrainingWeek(weekStartsOn: string): Promise<void> {
+  const res = await fetch(
+    `/api/v1/training-weeks/${encodeURIComponent(weekStartsOn)}`,
+    { method: 'DELETE' },
+  )
+  if (!res.ok) throw await readError(res)
+}
+
 async function readError(res: Response): Promise<ApiError> {
   let body: unknown
   try {

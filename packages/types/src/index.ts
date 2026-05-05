@@ -253,6 +253,17 @@ export interface TrainingWeekSummary {
   week_ends_on: string;
   track_count: number;
   day_count: number;
+  // Days with at least one prescribed exercise — the numerator of "coverage".
+  parsed_day_count: number;
+  // Days that should have exercises (workout / active_recovery) but came back
+  // empty. The actionable count for the admin's "needs reparse" stripe.
+  underparsed_day_count: number;
+  // Week position within its mesocycle (1..N). Tracks share this within a
+  // calendar week, so it's a single number per row.
+  week_position: number | null;
+  // 'standard' | 'bridge_week' | 'deload' | 'orphan_bridge' (typed loosely
+  // here; the renderer humanizes).
+  microcycle_kind: string | null;
   last_persisted_at: string;
 }
 
