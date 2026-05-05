@@ -40,6 +40,15 @@ body,
   height: 100%;
 }
 
+/* Reserve the vertical scrollbar gutter on both edges so swapping between a
+ * tall layout (workout day with section grid) and a short one (underparsed
+ * callout) doesn't shift the page as the scrollbar appears/disappears, AND
+ * the mirrored gutter on the opposite edge keeps `mx-auto`-centered content
+ * visually centered instead of biased toward the non-scrollbar side. */
+html {
+  scrollbar-gutter: stable both-edges;
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);

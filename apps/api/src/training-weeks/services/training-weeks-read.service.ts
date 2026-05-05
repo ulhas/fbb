@@ -20,7 +20,6 @@ import type {
   ParsedGroup,
   ParsedSection,
   ParsedSet,
-  ParsedTrack,
 } from '../schemas/parsed-document.schema';
 
 export interface TrainingWeekSummaryRow {
@@ -42,16 +41,66 @@ export interface TrainingWeekSummaryRow {
   last_persisted_at: string;
 }
 
+// Per-day metadata for the slim week index. Carries `section_count` and
+// `exercise_count` so the admin UI can render counts and the underparsed
+// indicator without fetching the day's body.
+export interface TrainingWeekDayMetaRow {
+  scheduled_on: string;
+  position: number;
+  display_name: string;
+  kind: string;
+  is_optional: boolean;
+  section_count: number;
+  exercise_count: number;
+}
+
+export interface TrainingWeekTrackIndexRow {
+  track_code: string;
+  family: string;
+  cadence: string | null;
+  display_name: string;
+  microcycle: {
+    kind: string;
+    starts_on: string;
+    ends_on: string;
+    mesocycle_position_hint: number | null;
+    week_position: number | null;
+  };
+  days: TrainingWeekDayMetaRow[];
+}
+
+// What `GET /training-weeks/:date` returns. SLIM index — no sections /
+// groups / exercises / sets. Day bodies are fetched on-demand via the
+// per-day endpoint so this navigation payload stays small (a few KB)
+// regardless of how many exercises the week contains.
 export interface TrainingWeekDetailRow {
   week_starts_on: string;
   week_ends_on: string;
-  tracks: ParsedTrack[];
+  tracks: TrainingWeekTrackIndexRow[];
   last_persisted_at: string;
   // Most recent succeeded upload-job whose parsed document covers this week.
   // Surfaced so the admin UI knows which job to POST to /upload-jobs/:id/retry
-  // for per-day reparse. Null when no upload-job is recoverable (e.g. the
-  // week was seeded directly into the relational tables, or jobs were purged).
+  // for per-day reparse. Null when no upload-job is recoverable.
   last_upload_job_id: string | null;
+}
+
+// One track's day for a given calendar date, with the full
+// sections/groups/exercises/sets tree.
+export interface TrainingWeekDayCellRow {
+  track: {
+    track_code: string;
+    family: string;
+    cadence: string | null;
+    display_name: string;
+    microcycle: TrainingWeekTrackIndexRow['microcycle'];
+  };
+  day: ParsedDay;
+}
+
+// What `GET /training-weeks/:date/days/:scheduledOn` returns.
+export interface TrainingWeekDayDetailRow {
+  scheduled_on: string;
+  cells: TrainingWeekDayCellRow[];
 }
 
 // Reads training-week data out of the relational tables. The persister writes
@@ -128,9 +177,9 @@ export class TrainingWeeksReadService {
     }));
   }
 
-  // Returns the full tree for one week — every track, every day, every
-  // section/group/exercise/set, plus day-scoped coaching notes. Returns null
-  // if no microcycles exist for the date.
+  // SLIM index for the week. Tracks + day metadata only — no sections,
+  // groups, exercises, sets, or coaching notes. Day bodies are fetched
+  // on-demand via `getWeekDay` so this navigation payload stays small.
   async getWeek(weekStartsOn: string): Promise<TrainingWeekDetailRow | null> {
     const microRows = await this.database.db
       .select({
@@ -153,13 +202,129 @@ export class TrainingWeeksReadService {
 
     if (microRows.length === 0) return null;
 
+    // Per-day metadata + counts. LEFT JOINs cascade so even days with no
+    // sections produce a row with section_count = exercise_count = 0 — the
+    // signal the admin UI uses to surface the "underparsed" callout.
+    const microIds = microRows.map((m) => m.microcycleId);
+    const dayRows = await this.database.db
+      .select({
+        id: days.id,
+        microcycleId: days.microcycleId,
+        position: days.position,
+        scheduledOn: days.scheduledOn,
+        displayName: days.displayName,
+        kind: days.kind,
+        isOptional: days.isOptional,
+        sectionCount: sql<number>`count(distinct ${sections.id})::int`,
+        exerciseCount: sql<number>`count(distinct ${prescribedExercises.id})::int`,
+      })
+      .from(days)
+      .leftJoin(sections, eq(sections.dayId, days.id))
+      .leftJoin(prescribedGroups, eq(prescribedGroups.sectionId, sections.id))
+      .leftJoin(
+        prescribedExercises,
+        eq(prescribedExercises.groupId, prescribedGroups.id),
+      )
+      .where(inArray(days.microcycleId, microIds))
+      .groupBy(
+        days.id,
+        days.microcycleId,
+        days.position,
+        days.scheduledOn,
+        days.displayName,
+        days.kind,
+        days.isOptional,
+      )
+      .orderBy(asc(days.scheduledOn));
+
+    const daysByMicrocycle = groupBy(dayRows, (d) => d.microcycleId);
+
+    const tracksOut: TrainingWeekTrackIndexRow[] = microRows.map((m) => ({
+      track_code: m.trackCode,
+      family: m.trackFamily,
+      cadence: m.trackCadence,
+      display_name: m.trackDisplayName,
+      microcycle: {
+        kind: m.microcycleKind,
+        starts_on: m.microcycleStartsOn,
+        ends_on: m.microcycleEndsOn,
+        mesocycle_position_hint: null,
+        week_position: m.microcyclePosition,
+      },
+      days: (daysByMicrocycle.get(m.microcycleId) ?? []).map((d) => ({
+        scheduled_on: d.scheduledOn,
+        position: d.position,
+        display_name: d.displayName,
+        kind: d.kind,
+        is_optional: d.isOptional,
+        section_count: d.sectionCount,
+        exercise_count: d.exerciseCount,
+      })),
+    }));
+
+    const lastPersistedAt = microRows.reduce<Date>((acc, m) => {
+      const d = new Date(m.microcycleUpdatedAt);
+      return d > acc ? d : acc;
+    }, new Date(microRows[0].microcycleUpdatedAt));
+
+    const jobRows = await this.database.db
+      .select({ id: uploadJobs.id })
+      .from(uploadJobs)
+      .where(
+        and(
+          eq(uploadJobs.status, 'succeeded'),
+          sql`(${uploadJobs.resultPayload} -> 'document' ->> 'week_starts_on') = ${weekStartsOn}`,
+        ),
+      )
+      .orderBy(desc(uploadJobs.finishedAt))
+      .limit(1);
+
+    return {
+      week_starts_on: weekStartsOn,
+      week_ends_on: microRows[0].microcycleEndsOn,
+      tracks: tracksOut,
+      last_persisted_at: lastPersistedAt.toISOString(),
+      last_upload_job_id: jobRows[0]?.id ?? null,
+    };
+  }
+
+  // Full content for one calendar day across every track. Returns the same
+  // tracks (programs/microcycles) you'd see in the index, but each cell
+  // carries the full ParsedDay tree (sections/groups/exercises/sets/coaching
+  // notes).
+  async getWeekDay(
+    weekStartsOn: string,
+    scheduledOn: string,
+  ): Promise<TrainingWeekDayDetailRow | null> {
+    const microRows = await this.database.db
+      .select({
+        microcycleId: microcycles.id,
+        microcycleKind: microcycles.kind,
+        microcycleStartsOn: microcycles.startsOn,
+        microcycleEndsOn: microcycles.endsOn,
+        microcyclePosition: microcycles.position,
+        trackCode: tracks.code,
+        trackFamily: tracks.family,
+        trackCadence: tracks.cadence,
+        trackDisplayName: tracks.displayName,
+      })
+      .from(microcycles)
+      .innerJoin(programs, eq(microcycles.programId, programs.id))
+      .innerJoin(tracks, eq(programs.trackId, tracks.id))
+      .where(eq(microcycles.startsOn, weekStartsOn));
+
+    if (microRows.length === 0) return null;
+
     const dayRows = await this.database.db
       .select()
       .from(days)
       .where(
-        inArray(
-          days.microcycleId,
-          microRows.map((m) => m.microcycleId),
+        and(
+          inArray(
+            days.microcycleId,
+            microRows.map((m) => m.microcycleId),
+          ),
+          eq(days.scheduledOn, scheduledOn),
         ),
       )
       .orderBy(asc(days.scheduledOn));
@@ -237,94 +402,75 @@ export class TrainingWeeksReadService {
     const notesByDay = groupBy(filteredDayNotes, (n) => n.scopeId);
     const daysByMicrocycle = groupBy(dayRows, (d) => d.microcycleId);
 
-    const tracksOut: ParsedTrack[] = microRows.map((m) => {
-      const trackDays: ParsedDay[] = (
-        daysByMicrocycle.get(m.microcycleId) ?? []
-      ).map((d) => ({
-        scheduled_on: d.scheduledOn,
-        position: d.position,
-        display_name: d.displayName,
-        kind: d.kind as ParsedDay['kind'],
-        is_optional: d.isOptional,
-        week_position: m.microcyclePosition,
-        day_position: d.position,
-        raw_text: '',
-        cms_source_id: d.cmsSourceId ?? '',
-        coaching_notes: (notesByDay.get(d.id) ?? []).map(
-          (n): ParsedCoachingNote => ({
-            kind: n.kind as ParsedCoachingNote['kind'],
-            title: n.title,
-            body_markdown: n.bodyMarkdown,
-          }),
-        ),
-        sections: (sectionsByDay.get(d.id) ?? []).map(
-          (s): ParsedSection => ({
-            position: s.position,
-            letter: s.letter,
-            kind: s.kind as ParsedSection['kind'],
-            display_name: s.displayName,
-            target_duration_min: s.targetDurationMin,
-            target_duration_max: s.targetDurationMax,
-            prescription_mode: s.prescriptionMode as ParsedSection['prescription_mode'],
-            daily_focus_note: s.dailyFocusNote,
-            effort_note: s.effortNote,
-            short_on_time_directive: null,
-            groups: (groupsBySection.get(s.id) ?? []).map((g) =>
-              buildGroup(
-                g,
-                s.prescriptionMode,
-                exercisesByGroup,
-                setsByExercise,
-                exerciseIdToPosition,
-              ),
-            ),
-          }),
-        ),
-      }));
-
-      return {
-        track_code: m.trackCode,
-        family: m.trackFamily as ParsedTrack['family'],
-        cadence: m.trackCadence as ParsedTrack['cadence'],
-        display_name: m.trackDisplayName,
-        microcycle: {
-          kind: m.microcycleKind as ParsedTrack['microcycle']['kind'],
-          starts_on: m.microcycleStartsOn,
-          ends_on: m.microcycleEndsOn,
-          mesocycle_position_hint: null,
+    const cells: TrainingWeekDayCellRow[] = microRows
+      .map((m): TrainingWeekDayCellRow | null => {
+        const dayList = daysByMicrocycle.get(m.microcycleId) ?? [];
+        const d = dayList[0]; // filtered to scheduledOn already
+        if (!d) return null;
+        const day: ParsedDay = {
+          scheduled_on: d.scheduledOn,
+          position: d.position,
+          display_name: d.displayName,
+          kind: d.kind as ParsedDay['kind'],
+          is_optional: d.isOptional,
           week_position: m.microcyclePosition,
-        },
-        days: trackDays,
-      };
-    });
-
-    const lastPersistedAt = microRows.reduce<Date>((acc, m) => {
-      const d = new Date(m.microcycleUpdatedAt);
-      return d > acc ? d : acc;
-    }, new Date(microRows[0].microcycleUpdatedAt));
-
-    // Latest succeeded upload-job whose parsed document covers this week.
-    // We match against `result_payload->document->>week_starts_on` because a
-    // job's filename is informational; the document's own week_starts_on is
-    // what the persister used to drive the writes.
-    const jobRows = await this.database.db
-      .select({ id: uploadJobs.id })
-      .from(uploadJobs)
-      .where(
-        and(
-          eq(uploadJobs.status, 'succeeded'),
-          sql`(${uploadJobs.resultPayload} -> 'document' ->> 'week_starts_on') = ${weekStartsOn}`,
-        ),
-      )
-      .orderBy(desc(uploadJobs.finishedAt))
-      .limit(1);
+          day_position: d.position,
+          raw_text: '',
+          cms_source_id: d.cmsSourceId ?? '',
+          coaching_notes: (notesByDay.get(d.id) ?? []).map(
+            (n): ParsedCoachingNote => ({
+              kind: n.kind as ParsedCoachingNote['kind'],
+              title: n.title,
+              body_markdown: n.bodyMarkdown,
+            }),
+          ),
+          sections: (sectionsByDay.get(d.id) ?? []).map(
+            (s): ParsedSection => ({
+              position: s.position,
+              letter: s.letter,
+              kind: s.kind as ParsedSection['kind'],
+              display_name: s.displayName,
+              target_duration_min: s.targetDurationMin,
+              target_duration_max: s.targetDurationMax,
+              prescription_mode:
+                s.prescriptionMode as ParsedSection['prescription_mode'],
+              daily_focus_note: s.dailyFocusNote,
+              effort_note: s.effortNote,
+              short_on_time_directive: null,
+              groups: (groupsBySection.get(s.id) ?? []).map((g) =>
+                buildGroup(
+                  g,
+                  s.prescriptionMode,
+                  exercisesByGroup,
+                  setsByExercise,
+                  exerciseIdToPosition,
+                ),
+              ),
+            }),
+          ),
+        };
+        return {
+          track: {
+            track_code: m.trackCode,
+            family: m.trackFamily,
+            cadence: m.trackCadence,
+            display_name: m.trackDisplayName,
+            microcycle: {
+              kind: m.microcycleKind,
+              starts_on: m.microcycleStartsOn,
+              ends_on: m.microcycleEndsOn,
+              mesocycle_position_hint: null,
+              week_position: m.microcyclePosition,
+            },
+          },
+          day,
+        };
+      })
+      .filter((c): c is TrainingWeekDayCellRow => c !== null);
 
     return {
-      week_starts_on: weekStartsOn,
-      week_ends_on: microRows[0].microcycleEndsOn,
-      tracks: tracksOut,
-      last_persisted_at: lastPersistedAt.toISOString(),
-      last_upload_job_id: jobRows[0]?.id ?? null,
+      scheduled_on: scheduledOn,
+      cells,
     };
   }
 }

@@ -2,9 +2,13 @@
 // /training-weeks reads persisted week data (relational tables); the upload
 // pipeline that creates that data lives in api/upload-jobs.ts.
 
-import type { TrainingWeekDetail, TrainingWeekSummary } from '@fbb/types'
+import type {
+  TrainingWeekDayDetail,
+  TrainingWeekDetail,
+  TrainingWeekSummary,
+} from '@fbb/types'
 
-export type { TrainingWeekDetail, TrainingWeekSummary }
+export type { TrainingWeekDayDetail, TrainingWeekDetail, TrainingWeekSummary }
 
 export class ApiError extends Error {
   readonly status: number
@@ -36,6 +40,22 @@ export async function fetchTrainingWeek(
   )
   if (!res.ok) throw await readError(res)
   return (await res.json()) as TrainingWeekDetail
+}
+
+// Heavy lift: full sections/groups/exercises/sets across every track for one
+// calendar day. The slim index (`fetchTrainingWeek`) carries no body content
+// so any view that needs to render exercise data hits this endpoint.
+export async function fetchTrainingWeekDay(
+  weekStartsOn: string,
+  scheduledOn: string,
+  signal?: AbortSignal,
+): Promise<TrainingWeekDayDetail> {
+  const res = await fetch(
+    `/api/v1/training-weeks/${encodeURIComponent(weekStartsOn)}/days/${encodeURIComponent(scheduledOn)}`,
+    { signal },
+  )
+  if (!res.ok) throw await readError(res)
+  return (await res.json()) as TrainingWeekDayDetail
 }
 
 // Wipes the persisted week (microcycles + cascades). Idempotent on the

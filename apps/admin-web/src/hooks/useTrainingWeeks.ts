@@ -6,7 +6,9 @@ import { useQuery } from '@tanstack/react-query'
 
 import {
   fetchTrainingWeek,
+  fetchTrainingWeekDay,
   listTrainingWeeks,
+  type TrainingWeekDayDetail,
   type TrainingWeekDetail,
   type TrainingWeekSummary,
 } from '../api/training-weeks'
@@ -16,6 +18,8 @@ export const trainingWeeksKeys = {
   list: () => [...trainingWeeksKeys.all, 'list'] as const,
   detail: (weekStartsOn: string) =>
     [...trainingWeeksKeys.all, 'detail', weekStartsOn] as const,
+  day: (weekStartsOn: string, scheduledOn: string) =>
+    [...trainingWeeksKeys.all, 'day', weekStartsOn, scheduledOn] as const,
 }
 
 export function useTrainingWeeks(): {
@@ -39,8 +43,9 @@ export function useTrainingWeeks(): {
   }
 }
 
-// Detail-page hook keyed by `week_starts_on` (ISO date). Returns the
-// assembled tracks tree for that week.
+// Detail-page hook keyed by `week_starts_on` (ISO date). Returns the slim
+// index — tracks + days metadata, no exercise content. Pair with
+// `useTrainingWeekDay` for the day's body.
 export function useTrainingWeek(weekStartsOn: string | undefined): {
   record: TrainingWeekDetail | null
   loading: boolean
@@ -52,6 +57,33 @@ export function useTrainingWeek(weekStartsOn: string | undefined): {
       : trainingWeeksKeys.detail('__none__'),
     queryFn: ({ signal }) => fetchTrainingWeek(weekStartsOn!, signal),
     enabled: Boolean(weekStartsOn),
+  })
+
+  return {
+    record: query.data ?? null,
+    loading: query.isLoading,
+    error: query.error instanceof Error ? query.error.message : null,
+  }
+}
+
+// Per-day full content. Cached per (weekStartsOn, scheduledOn) so toggling
+// between Track and Day view on the same day reuses the same payload.
+export function useTrainingWeekDay(
+  weekStartsOn: string | undefined,
+  scheduledOn: string | null,
+): {
+  record: TrainingWeekDayDetail | null
+  loading: boolean
+  error: string | null
+} {
+  const query = useQuery({
+    queryKey:
+      weekStartsOn && scheduledOn
+        ? trainingWeeksKeys.day(weekStartsOn, scheduledOn)
+        : trainingWeeksKeys.day('__none__', '__none__'),
+    queryFn: ({ signal }) =>
+      fetchTrainingWeekDay(weekStartsOn!, scheduledOn!, signal),
+    enabled: Boolean(weekStartsOn && scheduledOn),
   })
 
   return {

@@ -11,6 +11,7 @@ import { Card } from '../components/ui/Card'
 import {
   trainingWeeksKeys,
   useTrainingWeek,
+  useTrainingWeekDay,
   useTrainingWeeks,
 } from '../hooks/useTrainingWeeks'
 import type {
@@ -19,8 +20,10 @@ import type {
   ParsedGroup,
   ParsedSection,
   ParsedSet,
-  ParsedTrack,
   TrackFamily,
+  TrainingWeekDayCell,
+  TrainingWeekDayMeta,
+  TrainingWeekTrackIndex,
 } from '../types'
 
 // Sun-indexed so Date.getDay() maps directly. Using scheduled_on as the source
@@ -142,6 +145,22 @@ export function TrainingWeekDetailPage() {
     )
   }, [record, effectiveFamily, effectiveCadence])
 
+  // Day view uses a softer filter: it respects URL family/cadence when
+  // present but never auto-defaults. No URL filter = show every track for
+  // the selected day. This lets users land in day view (or carry a `family`
+  // selection over from track view) and see *all* matching tracks at once.
+  const dayViewTracks = useMemo(() => {
+    if (!record) return []
+    let arr = record.tracks
+    if (familyParam && families.includes(familyParam)) {
+      arr = arr.filter((t) => t.family === familyParam)
+    }
+    if (cadenceParam) {
+      arr = arr.filter((t) => (t.cadence ?? '__none__') === cadenceParam)
+    }
+    return arr
+  }, [record, familyParam, cadenceParam, families])
+
   const effectiveTrack =
     filteredTracks.find((t) => t.track_code === trackParam) ??
     filteredTracks[0] ??
@@ -211,11 +230,34 @@ export function TrainingWeekDetailPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="info">🏋️ {tracks.length} tracks</Badge>
+            {tracks[0]?.microcycle.week_position != null ? (
+              <Badge tone="neutral">
+                Week {tracks[0].microcycle.week_position}
+              </Badge>
+            ) : null}
+            {tracks[0]?.microcycle.kind ? (
+              <Badge tone="neutral">
+                {humanize(tracks[0].microcycle.kind)}
+              </Badge>
+            ) : null}
             <ViewToggle
               view={view}
-              onChange={(v) =>
-                updateParams({ view: v === 'track' ? null : v })
-              }
+              onChange={(v) => {
+                // Track view's filter cascade writes `cadence` and `track`
+                // to the URL as the user narrows down. Day and Matrix views
+                // are multi-track by nature, so carrying those through would
+                // silently shrink the visible set to whatever was last
+                // selected. Drop them on the way out; keep `family` (a
+                // useful scope) and `day` (the calendar day in focus).
+                const next: Record<string, string | null> = {
+                  view: v === 'track' ? null : v,
+                }
+                if (v !== 'track') {
+                  next.cadence = null
+                  next.track = null
+                }
+                updateParams(next)
+              }}
             />
           </div>
         </div>
@@ -271,7 +313,15 @@ export function TrainingWeekDetailPage() {
               }
             />
           ) : null}
-          {view === 'day' ? <ViewPlaceholder label="Day view" /> : null}
+          {view === 'day' ? (
+            <DayView
+              tracks={dayViewTracks}
+              weekStartsOn={record.week_starts_on}
+              selectedDay={dayParam}
+              onSelectDay={(iso) => updateParams({ day: iso })}
+              lastUploadJobId={record.last_upload_job_id}
+            />
+          ) : null}
         </>
       )}
     </>
@@ -335,7 +385,7 @@ function TrackFilter({
   activeFamily: TrackFamily | null
   cadences: Array<{ key: string; label: string }>
   activeCadence: string | null
-  tracks: ParsedTrack[]
+  tracks: TrainingWeekTrackIndex[]
   activeTrackCode: string | null
   showTrackPicker: boolean
   onSelectFamily: (f: TrackFamily) => void
@@ -422,14 +472,268 @@ function Chip({
   )
 }
 
-function ViewPlaceholder({ label }: { label: string }) {
+function DayView({
+  tracks,
+  weekStartsOn,
+  selectedDay,
+  onSelectDay,
+  lastUploadJobId,
+}: {
+  tracks: TrainingWeekTrackIndex[]
+  weekStartsOn: string
+  selectedDay: string | null
+  onSelectDay: (iso: string) => void
+  lastUploadJobId: string | null
+}) {
+  // Calendar dates Mon..Sun for the week, UTC-anchored to match MatrixView.
+  const weekDates = useMemo(() => {
+    const out: string[] = []
+    const base = new Date(`${weekStartsOn}T00:00:00Z`)
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(base)
+      d.setUTCDate(d.getUTCDate() + i)
+      out.push(d.toISOString().slice(0, 10))
+    }
+    return out
+  }, [weekStartsOn])
+
+  const activeIso =
+    selectedDay && weekDates.includes(selectedDay) ? selectedDay : weekDates[0]
+
+  // Heavy lift: full sections/groups/exercises/sets for every track on the
+  // active date. RQ caches per (week, day) so toggling Track ↔ Day on the
+  // same day reuses the same payload.
+  const { record: dayDetail, loading: dayLoading } = useTrainingWeekDay(
+    weekStartsOn,
+    activeIso,
+  )
+
+  // Filter the day-detail cells to the tracks visible under the current
+  // family/cadence URL filter. Ordering follows `tracks` (the index order).
+  const visibleCells = useMemo(() => {
+    if (!dayDetail) return []
+    const cellByTrack = new Map(
+      dayDetail.cells.map((c) => [c.track.track_code, c]),
+    )
+    return tracks
+      .map((t) => cellByTrack.get(t.track_code))
+      .filter((c): c is TrainingWeekDayCell => c !== undefined)
+  }, [dayDetail, tracks])
+
+  // Strip indicators come from the slim index — no need to wait on the
+  // heavy day-detail fetch to render the pill counts.
+  const countsByDate = useMemo(() => {
+    const map = new Map<
+      string,
+      { workout: number; recovery: number; lesson: number; off: number }
+    >()
+    for (const iso of weekDates) {
+      let workout = 0
+      let recovery = 0
+      let lesson = 0
+      let off = 0
+      for (const t of tracks) {
+        const day = t.days.find((d) => d.scheduled_on === iso)
+        if (!day) continue
+        if (day.kind === 'workout') workout++
+        else if (day.kind === 'active_recovery') recovery++
+        else if (day.kind === 'lesson') lesson++
+        else off++
+      }
+      map.set(iso, { workout, recovery, lesson, off })
+    }
+    return map
+  }, [tracks, weekDates])
+
   return (
-    <Card>
-      <div className="py-6 text-center">
-        <p className="text-sm font-semibold text-ink">{label}</p>
-        <p className="mt-1 text-xs text-ink-muted">Prototype lands next.</p>
+    <div className="space-y-4">
+      <DayCalendarStrip
+        weekDates={weekDates}
+        countsByDate={countsByDate}
+        activeIso={activeIso}
+        onSelect={onSelectDay}
+      />
+
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-lg font-bold text-ink">{formatDate(activeIso)}</h2>
+        <span className="text-sm text-ink-muted">
+          {visibleCells.length} track{visibleCells.length === 1 ? '' : 's'}
+        </span>
       </div>
-    </Card>
+
+      {dayLoading ? (
+        <Card>
+          <p className="text-sm text-ink-muted">Loading…</p>
+        </Card>
+      ) : visibleCells.length === 0 ? (
+        <Card>
+          <p className="text-sm text-ink-secondary">
+            No tracks have a day for {formatDate(activeIso)}.
+          </p>
+        </Card>
+      ) : (
+        <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(420px,1fr))]">
+          {visibleCells.map((cell) => (
+            <DayTrackCard
+              key={cell.track.track_code}
+              cell={cell}
+              weekStartsOn={weekStartsOn}
+              lastUploadJobId={lastUploadJobId}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DayCalendarStrip({
+  weekDates,
+  countsByDate,
+  activeIso,
+  onSelect,
+}: {
+  weekDates: string[]
+  countsByDate: Map<
+    string,
+    { workout: number; recovery: number; lesson: number; off: number }
+  >
+  activeIso: string
+  onSelect: (iso: string) => void
+}) {
+  return (
+    <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+      {weekDates.map((iso) => {
+        const counts = countsByDate.get(iso) ?? {
+          workout: 0,
+          recovery: 0,
+          lesson: 0,
+          off: 0,
+        }
+        return (
+          <DayCalendarPill
+            key={iso}
+            iso={iso}
+            counts={counts}
+            active={iso === activeIso}
+            onClick={() => onSelect(iso)}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+function DayCalendarPill({
+  iso,
+  counts,
+  active,
+  onClick,
+}: {
+  iso: string
+  counts: { workout: number; recovery: number; lesson: number; off: number }
+  active: boolean
+  onClick: () => void
+}) {
+  // Indicators are stacked in priority order: workouts dominate, then
+  // recovery, then lesson. Rest/mobility is implicit (it's "tracks not
+  // training").
+  const indicators: string[] = []
+  if (counts.workout > 0) indicators.push(`🏋️ ${counts.workout}`)
+  if (counts.recovery > 0) indicators.push(`🤸 ${counts.recovery}`)
+  if (counts.lesson > 0) indicators.push(`📚 ${counts.lesson}`)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-w-[124px] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-[var(--radius-card)] border px-3 py-2 text-left transition-colors ${
+        active
+          ? 'border-fbb-orange bg-fbb-orange-tint shadow-[0_4px_12px_rgba(15,23,42,0.08)]'
+          : 'border-divider bg-card hover:border-fbb-orange/40'
+      }`}
+    >
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+          {weekdayLabel(iso)}
+        </span>
+        <span className="text-[15px] font-bold text-ink">
+          {monthDayShort(iso)}
+        </span>
+      </div>
+      {indicators.length > 0 ? (
+        <span className="text-[10px] text-ink-muted">
+          {indicators.join(' · ')}
+        </span>
+      ) : null}
+    </button>
+  )
+}
+
+function DayTrackCard({
+  cell,
+  weekStartsOn,
+  lastUploadJobId,
+}: {
+  cell: TrainingWeekDayCell
+  weekStartsOn: string
+  lastUploadJobId: string | null
+}) {
+  const { track, day } = cell
+  const { sectionCount, exerciseCount } = countDay(day)
+  const tone = kindToneOf(day.kind)
+  const looksUnderparsed =
+    (day.kind === 'workout' || day.kind === 'active_recovery') &&
+    exerciseCount === 0
+  return (
+    <div className="flex flex-col rounded-[var(--radius-card)] bg-card shadow-[0_2px_8px_rgba(15,23,42,0.06)]">
+      <header className="flex items-start justify-between gap-2 border-b border-divider px-4 py-3">
+        <div className="min-w-0">
+          <div className="truncate text-[14px] font-semibold text-ink">
+            {track.display_name}
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+            <Badge tone="info">{FAMILY_LABEL[track.family]}</Badge>
+            {track.cadence ? (
+              <Badge tone="orange">{track.cadence}</Badge>
+            ) : null}
+            {track.microcycle.week_position != null ? (
+              <Badge tone="neutral">W{track.microcycle.week_position}</Badge>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <Badge tone={tone}>{humanize(day.kind)}</Badge>
+          {day.is_optional ? <Badge tone="neutral">Optional</Badge> : null}
+        </div>
+      </header>
+      {sectionCount > 0 ? (
+        <div className="border-b border-divider px-4 py-2 text-[11px] text-ink-muted">
+          📋 {sectionCount} {sectionCount === 1 ? 'section' : 'sections'} · 💪{' '}
+          {exerciseCount} {exerciseCount === 1 ? 'exercise' : 'exercises'}
+        </div>
+      ) : null}
+      <div className="px-4 py-3">
+        {day.kind === 'lesson' ? <LessonBody day={day} /> : null}
+        {day.sections.length > 0 ? (
+          <div className="space-y-2">
+            {day.sections.map((s) => (
+              <SectionDrawer
+                key={s.position}
+                section={s}
+                defaultOpen={false}
+              />
+            ))}
+          </div>
+        ) : looksUnderparsed ? (
+          <UnderparsedDayCallout
+            trackCode={track.track_code}
+            scheduledOn={day.scheduled_on}
+            weekStartsOn={weekStartsOn}
+            lastUploadJobId={lastUploadJobId}
+          />
+        ) : null}
+      </div>
+    </div>
   )
 }
 
@@ -440,7 +744,7 @@ function TrackPanel({
   weekStartsOn,
   lastUploadJobId,
 }: {
-  track: ParsedTrack
+  track: TrainingWeekTrackIndex
   selectedDay: string | null
   onSelectDay: (iso: string) => void
   weekStartsOn: string
@@ -459,46 +763,33 @@ function TrackPanel({
     )
   }, [track, selectedDay])
 
-  const activeDay =
-    track.days.find((d) => d.scheduled_on === activeIso) ?? null
+  // Day-detail returns every track's full content for the active calendar
+  // day; we filter to this track's cell. RQ caches per (week, day), so the
+  // payload is shared with Day view when the user toggles between them.
+  const { record: dayDetail, loading: dayLoading } = useTrainingWeekDay(
+    weekStartsOn,
+    activeIso,
+  )
+
+  const activeCell =
+    dayDetail?.cells.find((c) => c.track.track_code === track.track_code) ??
+    null
 
   return (
     <div className="space-y-4">
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-xs font-medium uppercase tracking-wider text-ink-muted">
-              Microcycle
-            </div>
-            <div className="mt-1 text-base font-semibold text-ink">
-              {formatDate(track.microcycle.starts_on)} →{' '}
-              {formatDate(track.microcycle.ends_on)}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="info">{FAMILY_LABEL[track.family]}</Badge>
-            {track.cadence ? (
-              <Badge tone="orange">{track.cadence}</Badge>
-            ) : null}
-            {track.microcycle.week_position != null ? (
-              <Badge tone="neutral">
-                Week {track.microcycle.week_position}
-              </Badge>
-            ) : null}
-            <Badge tone="neutral">{humanize(track.microcycle.kind)}</Badge>
-          </div>
-        </div>
-      </Card>
-
       <DayStrip
         days={track.days}
         activeIso={activeIso}
         onSelect={onSelectDay}
       />
 
-      {activeDay ? (
+      {dayLoading ? (
+        <Card>
+          <p className="text-sm text-ink-muted">Loading…</p>
+        </Card>
+      ) : activeCell ? (
         <DayPanel
-          day={activeDay}
+          day={activeCell.day}
           trackCode={track.track_code}
           weekStartsOn={weekStartsOn}
           lastUploadJobId={lastUploadJobId}
@@ -508,12 +799,13 @@ function TrackPanel({
   )
 }
 
+
 function DayStrip({
   days,
   activeIso,
   onSelect,
 }: {
-  days: ParsedDay[]
+  days: TrainingWeekDayMeta[]
   activeIso: string | null
   onSelect: (iso: string) => void
 }) {
@@ -536,12 +828,11 @@ function DayPill({
   active,
   onClick,
 }: {
-  day: ParsedDay
+  day: TrainingWeekDayMeta
   active: boolean
   onClick: () => void
 }) {
   const tone = kindToneOf(day.kind)
-  const { exerciseCount } = countDay(day)
   return (
     <button
       type="button"
@@ -561,9 +852,9 @@ function DayPill({
         </span>
       </div>
       <Badge tone={tone}>{humanize(day.kind)}</Badge>
-      {exerciseCount > 0 ? (
+      {day.exercise_count > 0 ? (
         <span className="text-[10px] text-ink-muted">
-          💪 {exerciseCount}
+          💪 {day.exercise_count}
         </span>
       ) : null}
     </button>
@@ -784,8 +1075,8 @@ function MatrixView({
   onPickCell,
 }: {
   weekStartsOn: string
-  tracks: ParsedTrack[]
-  onPickCell: (track: ParsedTrack, iso: string) => void
+  tracks: TrainingWeekTrackIndex[]
+  onPickCell: (track: TrainingWeekTrackIndex, iso: string) => void
 }) {
   const weekDates = useMemo(() => {
     const out: string[] = []
@@ -799,7 +1090,7 @@ function MatrixView({
   }, [weekStartsOn])
 
   const grouped = useMemo(() => {
-    const byFamily = new Map<TrackFamily, ParsedTrack[]>()
+    const byFamily = new Map<TrackFamily, TrainingWeekTrackIndex[]>()
     for (const t of tracks) {
       const list = byFamily.get(t.family) ?? []
       list.push(t)
@@ -896,11 +1187,10 @@ function MatrixCell({
   day,
   onClick,
 }: {
-  day: ParsedDay
+  day: TrainingWeekDayMeta
   onClick: () => void
 }) {
   const tone = kindToneOf(day.kind)
-  const { sectionCount, exerciseCount } = countDay(day)
   const cleanName = day.display_name.replace(/^Week \d+ Day \d+ - /, '')
   const stripeClass: Record<'orange' | 'info' | 'neutral', string> = {
     orange: 'border-l-fbb-orange',
@@ -914,14 +1204,14 @@ function MatrixCell({
       className={`flex h-[92px] w-full cursor-pointer flex-col items-start gap-1 overflow-hidden border-l-4 px-3 py-2 text-left transition-colors hover:bg-fbb-orange-tint/30 ${stripeClass[tone]}`}
     >
       <Badge tone={tone}>{humanize(day.kind)}</Badge>
-      {sectionCount > 0 ? (
+      {day.section_count > 0 ? (
         <span className="line-clamp-1 text-[11px] font-medium text-ink">
           {cleanName}
         </span>
       ) : null}
-      {exerciseCount > 0 ? (
+      {day.exercise_count > 0 ? (
         <span className="text-[10px] text-ink-muted">
-          📋 {sectionCount} · 💪 {exerciseCount}
+          📋 {day.section_count} · 💪 {day.exercise_count}
         </span>
       ) : null}
       {day.is_optional ? (
@@ -986,10 +1276,16 @@ function LessonBody({ day }: { day: ParsedDay }) {
   )
 }
 
-function SectionDrawer({ section }: { section: ParsedSection }) {
+function SectionDrawer({
+  section,
+  defaultOpen = true,
+}: {
+  section: ParsedSection
+  defaultOpen?: boolean
+}) {
   return (
     <details
-      open
+      open={defaultOpen}
       className="group rounded-md border border-divider bg-surface/40"
     >
       <summary className="flex items-start justify-between gap-3 px-3 py-2.5">

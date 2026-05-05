@@ -267,18 +267,67 @@ export interface TrainingWeekSummary {
   last_persisted_at: string;
 }
 
-// Full detail for one week — the assembled tracks/days/sections tree read
-// straight from the relational tables. Reuses `ParsedTrack` so the existing
-// renderers keep working.
+// Per-day metadata for the week index. Carries `section_count` and
+// `exercise_count` so the matrix / day-strip / day-pill renderers can show
+// kind chips, counts, and the underparsed indicator without having to fetch
+// the day's full content.
+export interface TrainingWeekDayMeta {
+  scheduled_on: string;
+  position: number;
+  display_name: string;
+  kind: DayKind;
+  is_optional: boolean;
+  section_count: number;
+  exercise_count: number;
+}
+
+// Track row in the week index — full microcycle metadata (chips render
+// without an extra fetch), lightweight days. Mirrors `ParsedTrack` shape but
+// with `TrainingWeekDayMeta[]` instead of `ParsedDay[]`.
+export interface TrainingWeekTrackIndex {
+  track_code: string;
+  family: TrackFamily;
+  cadence: TrackCadence | null;
+  display_name: string;
+  microcycle: ParsedMicrocycleHint;
+  days: TrainingWeekDayMeta[];
+}
+
+// What `GET /training-weeks/:date` returns. SLIM index — no sections /
+// groups / exercises / sets. Day bodies are fetched on-demand via
+// `GET /training-weeks/:date/days/:scheduledOn` so this navigation/index
+// payload stays small (a few KB) regardless of how many exercises the week
+// contains.
 export interface TrainingWeekDetail {
   week_starts_on: string;
   week_ends_on: string;
-  tracks: ParsedTrack[];
+  tracks: TrainingWeekTrackIndex[];
   last_persisted_at: string;
   // Latest succeeded upload-job whose parsed document covers this week.
-  // Null when no upload-job is still recoverable. Used by the admin UI
-  // to drive per-day reparse.
+  // Null when no upload-job is still recoverable. Drives per-day reparse
+  // from the admin UI.
   last_upload_job_id: string | null;
+}
+
+// One track's day for a given calendar date, with the full
+// sections/groups/exercises/sets tree.
+export interface TrainingWeekDayCell {
+  track: {
+    track_code: string;
+    family: TrackFamily;
+    cadence: TrackCadence | null;
+    display_name: string;
+    microcycle: ParsedMicrocycleHint;
+  };
+  day: ParsedDay;
+}
+
+// What `GET /training-weeks/:date/days/:scheduledOn` returns — every track's
+// day for that calendar date with full content. Track view filters to the
+// matching cell; Day view renders them all.
+export interface TrainingWeekDayDetail {
+  scheduled_on: string;
+  cells: TrainingWeekDayCell[];
 }
 
 // Upload-job list/detail shapes. These were previously conflated with the

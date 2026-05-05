@@ -14,6 +14,7 @@ import { AdminGuard } from './admin.guard';
 import { TrainingWeeksService } from './services/training-weeks.service';
 import {
   TrainingWeeksReadService,
+  type TrainingWeekDayDetailRow,
   type TrainingWeekDetailRow,
   type TrainingWeekSummaryRow,
 } from './services/training-weeks-read.service';
@@ -52,6 +53,29 @@ export class TrainingWeeksController {
       );
     }
     const detail = await this.reads.getWeek(weekStartsOn);
+    if (!detail) {
+      throw new NotFoundException(
+        `no training week persisted for week_starts_on=${weekStartsOn}`,
+      );
+    }
+    return detail;
+  }
+
+  // Full content for one calendar day across every track. The slim index
+  // (GET /:weekStartsOn) carries no exercise data, so the admin UI hits
+  // this endpoint when rendering a day's body — Track view filters to one
+  // cell, Day view renders all cells for the date.
+  @Get(':weekStartsOn/days/:scheduledOn')
+  async day(
+    @Param('weekStartsOn') weekStartsOn: string,
+    @Param('scheduledOn') scheduledOn: string,
+  ): Promise<TrainingWeekDayDetailRow> {
+    if (!ISO_DATE_RE.test(weekStartsOn) || !ISO_DATE_RE.test(scheduledOn)) {
+      throw new BadRequestException(
+        `weekStartsOn and scheduledOn must be ISO dates (YYYY-MM-DD)`,
+      );
+    }
+    const detail = await this.reads.getWeekDay(weekStartsOn, scheduledOn);
     if (!detail) {
       throw new NotFoundException(
         `no training week persisted for week_starts_on=${weekStartsOn}`,
