@@ -124,6 +124,47 @@ export async function retryUploadJob(
   return (await res.json()) as { job_id: string; failed_day_count: number }
 }
 
+// Per-day variant: ask the server to re-parse exactly these locators
+// (`track_code/YYYY-MM-DD`) regardless of whether they previously emitted a
+// parse warning. Used by the admin UI to retry days the LLM "succeeded" on
+// but returned empty.
+export async function retryUploadJobDays(
+  jobId: string,
+  dayLocators: string[],
+): Promise<{ job_id: string; failed_day_count: number }> {
+  const res = await fetch(
+    `/api/v1/upload-jobs/${encodeURIComponent(jobId)}/retry`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ day_locators: dayLocators }),
+    },
+  )
+  if (!res.ok) throw await readUploadError(res)
+  return (await res.json()) as { job_id: string; failed_day_count: number }
+}
+
+// Long-polls a job until it reaches a terminal status. Returns the final
+// status response (succeeded or failed); callers can inspect parse_warnings
+// on the result to confirm whether their specific day made it through.
+export async function pollUploadJobUntilDone(
+  jobId: string,
+  signal?: AbortSignal,
+): Promise<UploadStatusResponse> {
+  for (;;) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    const res = await fetch(
+      `/api/v1/upload-jobs/${encodeURIComponent(jobId)}/status?wait_ms=25000`,
+      { signal },
+    )
+    if (!res.ok) throw await readUploadError(res)
+    const status = (await res.json()) as UploadStatusResponse
+    if (status.status === 'succeeded' || status.status === 'failed') {
+      return status
+    }
+  }
+}
+
 async function readUploadError(res: Response): Promise<UploadError> {
   let body: unknown
   try {

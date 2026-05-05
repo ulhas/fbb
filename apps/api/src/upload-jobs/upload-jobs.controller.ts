@@ -92,16 +92,37 @@ export class UploadJobsController {
   // - 404 if the job doesn't exist
   // - 409 if the job is still queued/running from the original parse
   // - 410 if the original PDF is no longer on disk (re-upload required)
+  //
+  // Body is optional. When `day_locators` is provided, the retry runs against
+  // exactly those `track_code/YYYY-MM-DD` pairs instead of auto-deriving the
+  // failed-locator set from existing parse warnings. The admin UI uses this
+  // to reparse days the LLM returned empty for (no warning recorded).
   @Post(':id/retry')
   @HttpCode(HttpStatus.ACCEPTED)
   async retry(
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: { day_locators?: string[] } | undefined,
   ): Promise<{ job_id: string; failed_day_count: number }> {
+    const dayLocators = body?.day_locators;
+    if (dayLocators !== undefined) {
+      if (!Array.isArray(dayLocators) || dayLocators.length === 0) {
+        throw new BadRequestException(
+          'day_locators must be a non-empty array of "track_code/YYYY-MM-DD" strings',
+        );
+      }
+    }
+
     try {
-      const { jobId, failedDayCount } = await this.service.retry(id);
+      const { jobId, failedDayCount } = await this.service.retry(
+        id,
+        dayLocators ? { dayLocators } : undefined,
+      );
       return { job_id: jobId, failed_day_count: failedDayCount };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('invalid day locator')) {
+        throw new BadRequestException(message);
+      }
       if (message.includes('not found')) throw new NotFoundException(message);
       if (message.includes('still')) throw new ConflictException(message);
       if (message.includes('re-upload')) throw new GoneException(message);

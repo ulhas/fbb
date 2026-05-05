@@ -87,7 +87,16 @@ export class TrainingWeeksService {
   // relational tables; result_payload.parse_warnings is rewritten to drop
   // the locators that now pass. Document tree in result_payload stays as-is
   // (relational is the source of truth from now on).
-  async retry(jobId: string): Promise<{ jobId: string; failedDayCount: number }> {
+  //
+  // `opts.dayLocators`, when provided, overrides the auto-derivation and
+  // forces re-parse of exactly those locators (`track_code/YYYY-MM-DD`).
+  // Used by the admin UI to re-run days the LLM "succeeded" on but returned
+  // empty — those don't carry a parse_warning so the auto-derivation skips
+  // them.
+  async retry(
+    jobId: string,
+    opts?: { dayLocators?: string[] },
+  ): Promise<{ jobId: string; failedDayCount: number }> {
     const job = await this.uploadJobs.get(jobId);
     if (!job) {
       throw new Error(`upload job ${jobId} not found`);
@@ -106,17 +115,32 @@ export class TrainingWeeksService {
     }
 
     const existing = (job.resultPayload ?? null) as UploadResponseDto | null;
-    const failedLocators = new Set(
-      (existing?.parse_warnings ?? [])
-        .filter(
-          (w) =>
-            w.scope === 'day' &&
-            (w.code === 'no_object_generated' ||
-              w.code === 'llm_error' ||
-              w.code === 'persist_failed'),
-        )
-        .map((w) => w.locator),
-    );
+
+    let failedLocators: Set<string>;
+    if (opts?.dayLocators) {
+      const requested = opts.dayLocators;
+      const malformed = requested.filter(
+        (l) => !/^[A-Za-z0-9_]+\/\d{4}-\d{2}-\d{2}$/.test(l),
+      );
+      if (malformed.length > 0) {
+        throw new Error(
+          `invalid day locator(s): ${malformed.join(', ')} — expected "track_code/YYYY-MM-DD"`,
+        );
+      }
+      failedLocators = new Set(requested);
+    } else {
+      failedLocators = new Set(
+        (existing?.parse_warnings ?? [])
+          .filter(
+            (w) =>
+              w.scope === 'day' &&
+              (w.code === 'no_object_generated' ||
+                w.code === 'llm_error' ||
+                w.code === 'persist_failed'),
+          )
+          .map((w) => w.locator),
+      );
+    }
 
     if (failedLocators.size === 0) {
       this.logger.info({

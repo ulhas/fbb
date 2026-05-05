@@ -264,6 +264,10 @@ export interface TrainingWeekDetail {
   week_ends_on: string;
   tracks: ParsedTrack[];
   last_persisted_at: string;
+  // Latest succeeded upload-job whose parsed document covers this week.
+  // Null when no upload-job is still recoverable. Used by the admin UI
+  // to drive per-day reparse.
+  last_upload_job_id: string | null;
 }
 
 // Upload-job list/detail shapes. These were previously conflated with the

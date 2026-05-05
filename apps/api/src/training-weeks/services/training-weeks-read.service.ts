@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { DatabaseService } from '../../database/database.service';
 import { coachingNotes } from '../../database/schema/coaching-notes';
@@ -12,6 +12,7 @@ import { prescribedSets } from '../../database/schema/prescribed-sets';
 import { programs } from '../../database/schema/programs';
 import { sections } from '../../database/schema/sections';
 import { tracks } from '../../database/schema/tracks';
+import { uploadJobs } from '../../database/schema/upload-jobs';
 import type {
   ParsedCoachingNote,
   ParsedDay,
@@ -35,6 +36,11 @@ export interface TrainingWeekDetailRow {
   week_ends_on: string;
   tracks: ParsedTrack[];
   last_persisted_at: string;
+  // Most recent succeeded upload-job whose parsed document covers this week.
+  // Surfaced so the admin UI knows which job to POST to /upload-jobs/:id/retry
+  // for per-day reparse. Null when no upload-job is recoverable (e.g. the
+  // week was seeded directly into the relational tables, or jobs were purged).
+  last_upload_job_id: string | null;
 }
 
 // Reads training-week data out of the relational tables. The persister writes
@@ -247,11 +253,28 @@ export class TrainingWeeksReadService {
       return d > acc ? d : acc;
     }, new Date(microRows[0].microcycleUpdatedAt));
 
+    // Latest succeeded upload-job whose parsed document covers this week.
+    // We match against `result_payload->document->>week_starts_on` because a
+    // job's filename is informational; the document's own week_starts_on is
+    // what the persister used to drive the writes.
+    const jobRows = await this.database.db
+      .select({ id: uploadJobs.id })
+      .from(uploadJobs)
+      .where(
+        and(
+          eq(uploadJobs.status, 'succeeded'),
+          sql`(${uploadJobs.resultPayload} -> 'document' ->> 'week_starts_on') = ${weekStartsOn}`,
+        ),
+      )
+      .orderBy(desc(uploadJobs.finishedAt))
+      .limit(1);
+
     return {
       week_starts_on: weekStartsOn,
       week_ends_on: microRows[0].microcycleEndsOn,
       tracks: tracksOut,
       last_persisted_at: lastPersistedAt.toISOString(),
+      last_upload_job_id: jobRows[0]?.id ?? null,
     };
   }
 }
