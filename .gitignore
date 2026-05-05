@@ -8,6 +8,12 @@
 # Dependencies
 node_modules/
 
+# Turbo build cache
+.turbo/
+
+# Build output
+dist/
+
 # Env
 .env
 .env.local
