@@ -24,7 +24,7 @@ final class ProfileViewModel {
     // MARK: - Dependencies
 
     private let api: APIClient
-    private let entitlements: EntitlementsStore
+    private let userStore: UserStore
     private let clock: any DateProvider
     private var source: any ProfileSource
 
@@ -36,12 +36,12 @@ final class ProfileViewModel {
 
     init(
         api: APIClient,
-        entitlements: EntitlementsStore,
+        userStore: UserStore,
         clock: any DateProvider = SystemDateProvider(),
         source: (any ProfileSource)? = nil
     ) {
         self.api = api
-        self.entitlements = entitlements
+        self.userStore = userStore
         self.clock = clock
         self.source = source ?? MockProfileSource(now: clock.now)
     }

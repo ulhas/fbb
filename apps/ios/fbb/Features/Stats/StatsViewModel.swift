@@ -25,7 +25,7 @@ final class StatsViewModel {
 
     // MARK: - Dependencies
 
-    private let entitlements: EntitlementsStore
+    private let userStore: UserStore
     private let clock: any DateProvider
 
     // The mock builder is parameterized by which hero variant to show, so the
@@ -43,14 +43,14 @@ final class StatsViewModel {
     // MARK: - Init
 
     init(
-        entitlements: EntitlementsStore,
+        userStore: UserStore,
         clock: any DateProvider = SystemDateProvider(),
         source: (any StatsSource)? = nil
     ) {
-        self.entitlements = entitlements
+        self.userStore = userStore
         self.clock = clock
         self.source = source ?? MockStatsSource(
-            enrolledTrackCodes: entitlements.selectedTrackCodes,
+            enrolledTrackCodes: userStore.selectedTrackCodes,
             now: clock.now,
             heroIndex: 0
         )
@@ -93,7 +93,7 @@ final class StatsViewModel {
     private func rebuildSourceIfMock() {
         if let _ = source as? MockStatsSource {
             source = MockStatsSource(
-                enrolledTrackCodes: entitlements.selectedTrackCodes,
+                enrolledTrackCodes: userStore.selectedTrackCodes,
                 now: clock.now,
                 heroIndex: heroRotation
             )

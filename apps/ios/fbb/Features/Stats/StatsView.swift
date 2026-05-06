@@ -4,8 +4,8 @@ struct StatsView: View {
     @State private var vm: StatsViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(entitlements: EntitlementsStore) {
-        _vm = State(wrappedValue: StatsViewModel(entitlements: entitlements))
+    init(userStore: UserStore) {
+        _vm = State(wrappedValue: StatsViewModel(userStore: userStore))
     }
 
     var body: some View {
@@ -191,7 +191,7 @@ private struct StatsSkeleton: View {
 
 #Preview {
     NavigationStack {
-        StatsView(entitlements: EntitlementsStore())
+        StatsView(userStore: UserStore(api: APIClient()))
             .navigationTitle("Stats")
             .navigationBarTitleDisplayMode(.inline)
     }

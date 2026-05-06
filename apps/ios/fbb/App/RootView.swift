@@ -2,24 +2,29 @@ import SwiftUI
 
 struct RootView: View {
     private let api: APIClient
-    private let entitlements: EntitlementsStore
+    private let userStore: UserStore
     @State private var homeVM: HomeViewModel
     @State private var todayPath = NavigationPath()
+    @State private var selection: AppTab = .today
 
-    init(api: APIClient, entitlements: EntitlementsStore) {
+    init(api: APIClient, userStore: UserStore) {
         self.api = api
-        self.entitlements = entitlements
+        self.userStore = userStore
         _homeVM = State(
             wrappedValue: HomeViewModel(
                 api: api,
-                entitlements: entitlements
+                userStore: userStore
             )
         )
     }
 
+    enum AppTab: Hashable {
+        case community, stats, today, nutrition, aiCoach
+    }
+
     var body: some View {
-        TabView {
-            Tab("Community", systemImage: "person.3.fill") {
+        TabView(selection: $selection) {
+            Tab("Community", systemImage: "person.3.fill", value: AppTab.community) {
                 NavigationStack {
                     CommunityView()
                         .navigationTitle("Community")
@@ -27,15 +32,15 @@ struct RootView: View {
                 }
             }
 
-            Tab("Stats", systemImage: "chart.line.uptrend.xyaxis") {
+            Tab("Stats", systemImage: "chart.line.uptrend.xyaxis", value: AppTab.stats) {
                 NavigationStack {
-                    StatsView(entitlements: entitlements)
+                    StatsView(userStore: userStore)
                         .navigationTitle("Stats")
                         .navigationBarTitleDisplayMode(.inline)
                 }
             }
 
-            Tab("Today", systemImage: "flame.fill") {
+            Tab("Today", systemImage: "flame.fill", value: AppTab.today) {
                 NavigationStack(path: $todayPath) {
                     HomeView(vm: homeVM)
                         .navigationDestination(for: NavRoute.self) { route in
@@ -45,7 +50,7 @@ struct RootView: View {
                             case let .day(week, day):
                                 DayDetailView(weekStartsOn: week, scheduledOn: day, api: api)
                             case .profile:
-                                ProfileView(api: api, entitlements: entitlements)
+                                ProfileView(api: api, userStore: userStore)
                                     .navigationTitle("Profile")
                                     .navigationBarTitleDisplayMode(.inline)
                             }
@@ -64,7 +69,7 @@ struct RootView: View {
                 }
             }
 
-            Tab("Nutrition", systemImage: "fork.knife") {
+            Tab("Nutrition", systemImage: "fork.knife", value: AppTab.nutrition) {
                 NavigationStack {
                     NutritionView()
                         .navigationTitle("Nutrition")
@@ -72,7 +77,7 @@ struct RootView: View {
                 }
             }
 
-            Tab("AI Coach", systemImage: "sparkles") {
+            Tab("AI Coach", systemImage: "sparkles", value: AppTab.aiCoach) {
                 NavigationStack {
                     SupportView()
                         .navigationTitle("AI Coach")

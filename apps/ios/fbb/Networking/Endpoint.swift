@@ -5,6 +5,11 @@ enum Endpoint {
     case weekDetail(weekStartsOn: String)
     case dayDetail(weekStartsOn: String, scheduledOn: String)
 
+    case me
+    case meTracks
+    case followTrack(code: String)
+    case unfollowTrack(code: String)
+
     var path: String {
         switch self {
         case .listWeeks:
@@ -13,6 +18,12 @@ enum Endpoint {
             return "/training-weeks/\(weekStartsOn)"
         case .dayDetail(let weekStartsOn, let scheduledOn):
             return "/training-weeks/\(weekStartsOn)/days/\(scheduledOn)"
+        case .me:
+            return "/me"
+        case .meTracks:
+            return "/me/tracks"
+        case .followTrack(let code), .unfollowTrack(let code):
+            return "/me/tracks/\(code)/follow"
         }
     }
 }

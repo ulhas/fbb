@@ -8,6 +8,27 @@
       "when": 1777968811297,
       "tag": "0000_shallow_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778049084394,
+      "tag": "0001_shiny_jocasta",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778049100431,
+      "tag": "0002_seed_tracks",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778084931883,
+      "tag": "0003_sparkling_dreadnoughts",
+      "breakpoints": true
     }
   ]
 }

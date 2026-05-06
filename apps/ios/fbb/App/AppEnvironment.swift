@@ -7,16 +7,16 @@ import Observation
 @MainActor
 final class AppEnvironment {
     let api: APIClient
-    let entitlements: EntitlementsStore
+    let userStore: UserStore
     let clock: any DateProvider
 
     init(
         api: APIClient = APIClient(),
-        entitlements: EntitlementsStore? = nil,
+        userStore: UserStore? = nil,
         clock: any DateProvider = SystemDateProvider()
     ) {
         self.api = api
-        self.entitlements = entitlements ?? EntitlementsStore()
+        self.userStore = userStore ?? UserStore(api: api)
         self.clock = clock
     }
 }

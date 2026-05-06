@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ProfileView: View {
-    @Environment(EntitlementsStore.self) private var entitlements
+    @Environment(UserStore.self) private var userStore
     @State private var vm: ProfileViewModel
 
     @State private var sheet: SheetKind?
@@ -31,8 +31,8 @@ struct ProfileView: View {
         }
     }
 
-    init(api: APIClient, entitlements: EntitlementsStore) {
-        _vm = State(wrappedValue: ProfileViewModel(api: api, entitlements: entitlements))
+    init(api: APIClient, userStore: UserStore) {
+        _vm = State(wrappedValue: ProfileViewModel(api: api, userStore: userStore))
     }
 
     var body: some View {
@@ -96,7 +96,7 @@ struct ProfileView: View {
         )
 
         TracksCard(
-            selectedTrackCodes: entitlements.selectedTrackCodes,
+            selectedTrackCodes: userStore.selectedTrackCodes,
             onEdit: { sheet = .editTracks }
         )
 
@@ -259,8 +259,8 @@ struct ProfileView: View {
         switch kind {
         case .editTracks:
             EditTracksSheet(
-                selectedCodes: entitlements.selectedTrackCodes,
-                onToggle: { entitlements.toggle($0) },
+                selectedCodes: userStore.selectedTrackCodes,
+                onToggle: { userStore.toggle($0) },
                 onDone: { sheet = nil }
             )
         case .editDOB:

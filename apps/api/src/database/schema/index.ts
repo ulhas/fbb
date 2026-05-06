@@ -12,6 +12,9 @@ export * from './programs';
 export * from './mesocycles';
 export * from './microcycles';
 
+export * from './users';
+export * from './user-track-follows';
+
 export * from './media-assets';
 export * from './movements';
 

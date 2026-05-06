@@ -11,7 +11,7 @@ protocol StatsSource: Sendable {
 /// Deterministic mock so the page doesn't shuffle on every cold-start, but
 /// `forceRefresh` rotates the hero narrative to make pull-to-refresh feel
 /// alive. Track progressions are scoped to whatever the user has enrolled
-/// via `EntitlementsStore` so the page reads naturally for any seed.
+/// via `UserStore` so the page reads naturally for any seed.
 struct MockStatsSource: StatsSource {
     let enrolledTrackCodes: [String]
     let now: Date

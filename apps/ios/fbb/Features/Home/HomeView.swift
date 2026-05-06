@@ -2,126 +2,119 @@ import SwiftUI
 
 struct HomeView: View {
     @Bindable var vm: HomeViewModel
-    @Environment(EntitlementsStore.self) private var entitlements
-    @State private var showLoggerPlaceholder = false
+    @Environment(UserStore.self) private var userStore
+    @State private var showQuizSheet = false
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: Spacing.lg) {
+            LazyVStack(alignment: .leading, spacing: Spacing.md) {
                 header
+                    .padding(.horizontal, Spacing.md)
 
-                if entitlements.selectedTrackCodes.isEmpty {
-                    NoTracksSelectedView()
+                if userStore.selectedTrackCodes.isEmpty {
+                    FindYourMatchCard(onStartQuiz: { showQuizSheet = true })
                         .padding(.horizontal, Spacing.md)
-                } else {
-                    if !vm.availableTracks.isEmpty {
-                        TrackSelector(
-                            tracks: vm.availableTracks,
-                            selectedTrackCode: vm.focusedTrack?.trackCode,
-                            onSelect: { vm.selectTrack($0) }
-                        )
-                    }
 
-                    if !vm.microcycleDays.isEmpty {
-                        DaySwitcher(
-                            days: vm.microcycleDays,
-                            selectedDate: vm.selectedDate,
-                            todayISO: vm.todayISO,
-                            onSelect: { vm.selectDate($0) }
-                        )
-                    }
+                    TodayNutritionCard(
+                        selectedDate: vm.selectedDate ?? vm.todayISO,
+                        dayKindHint: nil
+                    )
+                    .padding(.horizontal, Spacing.md)
+                } else {
+                    weekPicker
+                        .padding(.horizontal, Spacing.md)
 
                     if vm.showBridgeBadge {
                         BridgeWeekBadge()
                             .padding(.horizontal, Spacing.md)
                     }
 
-                    heroSection
+                    trackCardsSection
                         .padding(.horizontal, Spacing.md)
 
-                    if !vm.microcycleDays.isEmpty {
-                        WeekStrip(
-                            days: vm.microcycleDays,
-                            selectedDate: vm.selectedDate,
-                            todayISO: vm.todayISO,
-                            onSelect: { vm.selectDate($0) }
-                        )
-                    }
-
-                    if vm.showSaturdayDrop, let banner = saturdayBanner {
-                        banner
-                            .padding(.horizontal, Spacing.md)
-                    }
-
-                    previousWeeksSection
+                    MoreTracksCard(onStartQuiz: { showQuizSheet = true })
                         .padding(.horizontal, Spacing.md)
+
+                    TodayNutritionCard(
+                        selectedDate: vm.selectedDate,
+                        dayKindHint: vm.workoutDayKindHint
+                    )
+                    .padding(.horizontal, Spacing.md)
                 }
             }
-            .padding(.vertical, Spacing.lg)
+            .padding(.vertical, Spacing.md)
         }
         .background(Color.fbbBackground)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .refreshable { await vm.refresh() }
         .task { await vm.onAppear() }
-        .fullScreenCover(isPresented: $showLoggerPlaceholder) {
-            LoggerPlaceholderView { showLoggerPlaceholder = false }
+        .sheet(isPresented: $showQuizSheet) {
+            TrackQuizSheet(
+                userStore: userStore,
+                onDone: { showQuizSheet = false }
+            )
         }
     }
 
-    // MARK: - Sections
+    // MARK: - Pieces
 
     private var header: some View {
-        GreetingHeader(
-            weekdayName: ISODate.weekdayName(headerISO),
-            monthDay: ISODate.monthDay(headerISO),
-            microcycleLabel: microcycleLabel
+        VStack(alignment: .leading, spacing: 2) {
+            Text(vm.headerTitle)
+                .font(.fbb.display)
+                .foregroundStyle(Color.inkPrimary)
+            if let microcycleLabel = vm.microcycleLabel {
+                Text(microcycleLabel)
+                    .font(.fbb.caption.weight(.semibold))
+                    .foregroundStyle(Color.inkSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var weekPicker: some View {
+        WeekDayPicker(
+            items: vm.weekItems,
+            selectedDate: vm.selectedDate,
+            todayISO: vm.todayISO,
+            weekRangeLabel: vm.weekRangeLabel,
+            microcycleLabel: vm.microcycleLabel,
+            canGoPrevious: vm.canGoPreviousWeek,
+            canGoNext: vm.canGoNextWeek,
+            onSelect: { vm.selectDate($0) },
+            onPrevious: { vm.goToPreviousWeek() },
+            onNext: { vm.goToNextWeek() }
         )
-        .padding(.horizontal, Spacing.md)
-    }
-
-    private var headerISO: String {
-        vm.selectedDate ?? vm.todayISO
-    }
-
-    private var microcycleLabel: String? {
-        guard let micro = vm.focusedTrack?.microcycle else { return nil }
-        var parts: [String] = []
-        if let mesoPos = micro.mesocyclePositionHint {
-            parts.append("Mesocycle \(mesoPos)")
-        }
-        if let weekPos = micro.weekPosition {
-            parts.append("Week \(weekPos)")
-        }
-        if parts.isEmpty {
-            parts.append(micro.kind.displayLabel)
-        }
-        return parts.joined(separator: " · ")
     }
 
     @ViewBuilder
-    private var heroSection: some View {
+    private var trackCardsSection: some View {
         switch vm.dayDetail {
         case .idle, .loading:
-            heroSkeleton
+            VStack(spacing: Spacing.sm) {
+                trackCardSkeleton
+                trackCardSkeleton
+            }
 
         case .loaded:
-            if let day = vm.focusedDay, let track = vm.focusedTrack {
-                if day.kind == .rest {
-                    RestDayCard(day: day)
-                } else {
-                    WorkoutHeroCard(
-                        day: day,
-                        track: track,
-                        onStart: { showLoggerPlaceholder = true }
-                    )
-                }
+            if vm.followedDayCells.isEmpty {
+                EmptyDayInWeekCard()
             } else {
-                EmptyDayCard()
+                VStack(spacing: Spacing.sm) {
+                    ForEach(vm.followedDayCells) { cell in
+                        if let week = vm.viewedWeek.value, let date = vm.selectedDate {
+                            NavigationLink(value: NavRoute.day(week: week.weekStartsOn, day: date)) {
+                                TrackWorkoutCard(cell: cell, onTap: {})
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
             }
 
         case .failed(let err):
             ErrorCard(
-                title: "Couldn't load today's workout",
+                title: "Couldn't load this day",
                 message: err.errorDescription,
                 isRetryable: err.isRetryable,
                 retry: { Task { await vm.refresh() } }
@@ -129,101 +122,41 @@ struct HomeView: View {
         }
     }
 
-    private var heroSkeleton: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            SkeletonBlock(width: 180, height: 16)
-            SkeletonBlock(width: 240, height: 24)
-            SkeletonBlock(height: 14)
-            SkeletonBlock(height: 14)
-            SkeletonBlock(height: 52, corner: 12)
-                .padding(.top, Spacing.xs)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .cardStyle()
-    }
-
-    @ViewBuilder
-    private var previousWeeksSection: some View {
-        switch vm.weekList {
-        case .idle, .loading:
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("Previous Weeks")
-                    .font(.fbb.title3)
-                    .foregroundStyle(.inkPrimary)
-                ForEach(0..<3, id: \.self) { _ in WeekRow.skeleton() }
+    private var trackCardSkeleton: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            HStack(spacing: Spacing.xs) {
+                SkeletonBlock(width: 30, height: 30, corner: 8)
+                SkeletonBlock(width: 140, height: 14)
+                Spacer()
+                SkeletonBlock(width: 70, height: 18, corner: 9)
             }
-
-        case .loaded(let rows):
-            PreviousWeeksList(
-                rows: rows,
-                currentWeekStartsOn: vm.currentWeek.value?.weekStartsOn
-            )
-
-        case .failed(let err):
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("Previous Weeks")
-                    .font(.fbb.title3)
-                    .foregroundStyle(.inkPrimary)
-                ErrorCard(
-                    title: "Couldn't load history",
-                    message: err.errorDescription,
-                    isRetryable: err.isRetryable,
-                    retry: { Task { await vm.refresh() } }
-                )
-            }
+            SkeletonBlock(width: 220, height: 22)
+            SkeletonBlock(height: 12)
+            SkeletonBlock(height: 12)
         }
-    }
-
-    @ViewBuilder
-    private var saturdayBanner: SaturdayDropBanner? {
-        guard case .loaded(let rows) = vm.weekList,
-              let newest = rows.max(by: { $0.weekStartsOn < $1.weekStartsOn }) else {
-            return nil
-        }
-        return SaturdayDropBanner(
-            weekRangeLabel: ISODate.rangeLabel(start: newest.weekStartsOn, end: newest.weekEndsOn),
-            onTap: { vm.selectDate(newest.weekStartsOn) }
-        )
+        .padding(Spacing.md)
+        .background(Color.surfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.cardCorner, style: .continuous))
     }
 }
 
-// MARK: - Empty / placeholder views
+// MARK: - Empty day in week card
 
-private struct EmptyDayCard: View {
+private struct EmptyDayInWeekCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("No workout for this day")
+            Text("No workout scheduled")
                 .font(.fbb.bodyBold)
-                .foregroundStyle(.inkPrimary)
-            Text("Pick another day from the strip above.")
+                .foregroundStyle(Color.inkPrimary)
+            Text("Pick another day from the picker above.")
                 .font(.fbb.caption)
-                .foregroundStyle(.inkMuted)
+                .foregroundStyle(Color.inkSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardStyle()
+        .padding(Spacing.md)
+        .background(Color.surfaceCard)
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.cardCorner, style: .continuous))
+        .elevation(.card)
     }
 }
 
-private struct LoggerPlaceholderView: View {
-    let onClose: () -> Void
-    var body: some View {
-        VStack(spacing: Spacing.lg) {
-            Image(systemName: "figure.strengthtraining.traditional")
-                .font(.system(size: 56))
-                .foregroundStyle(.fbbOrange)
-            Text("Logger coming next")
-                .font(.fbb.title2)
-                .foregroundStyle(.inkPrimary)
-            Text("This is the .fullScreenCover where the workout logger will live.")
-                .font(.fbb.body)
-                .foregroundStyle(.inkSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Spacing.lg)
-            Button("Close", action: onClose)
-                .buttonStyle(PrimaryGlassButtonStyle())
-                .padding(.horizontal, Spacing.lg)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.fbbBackground)
-    }
-}

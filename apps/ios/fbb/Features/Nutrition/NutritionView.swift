@@ -11,10 +11,19 @@ struct NutritionView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                DateStrip(
-                    days: vm.day.value?.dateStrip ?? defaultDateStrip,
-                    onSelect: { vm.selectDate($0) }
+                WeekDayPicker(
+                    items: vm.weekItems,
+                    selectedDate: vm.selectedDate,
+                    todayISO: vm.todayISO,
+                    weekRangeLabel: vm.weekRangeLabel,
+                    microcycleLabel: nil,
+                    canGoPrevious: vm.canGoPreviousWeek,
+                    canGoNext: vm.canGoNextWeek,
+                    onSelect: { vm.selectDate($0) },
+                    onPrevious: { vm.goToPreviousWeek() },
+                    onNext: { vm.goToNextWeek() }
                 )
+                .padding(.horizontal, Spacing.md)
                 .padding(.bottom, Spacing.xs)
 
                 LazyVStack(alignment: .leading, spacing: Spacing.lg) {
@@ -85,14 +94,6 @@ struct NutritionView: View {
             quickAddInfoMessage = "Tapped saved meal: \(s.label). Manual logging UI is coming soon."
         }
         showQuickAddInfo = true
-    }
-
-    private var defaultDateStrip: [DateStripDay] {
-        let today = Date()
-        return NutritionMockData.build(
-            for: ISODate.string(today),
-            now: today
-        ).dateStrip
     }
 
     private func caseTag<V>(_ s: NutritionViewModel.LoadState<V>) -> Int {
