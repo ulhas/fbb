@@ -1,13 +1,13 @@
 import Foundation
 
-enum APIError: Error, LocalizedError, Sendable {
+public enum APIError: Error, LocalizedError, Sendable {
     case transport(URLError)
     case http(status: Int, body: String?)
     case decoding(String)
     case notFound
     case unknown(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .transport(let err):
             return err.localizedDescription
@@ -22,7 +22,7 @@ enum APIError: Error, LocalizedError, Sendable {
         }
     }
 
-    var isRetryable: Bool {
+    public var isRetryable: Bool {
         switch self {
         case .transport: return true
         case .http(let status, _): return status >= 500

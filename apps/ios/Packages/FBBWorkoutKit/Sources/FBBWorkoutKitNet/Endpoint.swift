@@ -1,6 +1,6 @@
 import Foundation
 
-enum Endpoint {
+public enum Endpoint {
     case listWeeks
     case weekDetail(weekStartsOn: String)
     case dayDetail(weekStartsOn: String, scheduledOn: String)
@@ -14,7 +14,7 @@ enum Endpoint {
     case listWorkoutSessions
     case workoutSessionDetail(id: String)
 
-    var path: String {
+    public var path: String {
         switch self {
         case .listWeeks:
             return "/training-weeks"

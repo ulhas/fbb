@@ -4,7 +4,7 @@ import Foundation
 // Snake-case raw values are explicit because JSONDecoder.keyDecodingStrategy
 // rewrites JSON *keys*, not enum *raw values*.
 
-enum TrackFamily: String, Codable, Sendable, CaseIterable, Hashable {
+public enum TrackFamily: String, Codable, Sendable, CaseIterable, Hashable {
     case pumpLift       = "pump_lift"
     case pumpCondition  = "pump_condition"
     case perform
@@ -13,7 +13,7 @@ enum TrackFamily: String, Codable, Sendable, CaseIterable, Hashable {
     case workshop
     case onramp
 
-    var displayLabel: String {
+    public var displayLabel: String {
         switch self {
         case .pumpLift:       return "PUMP LIFT"
         case .pumpCondition:  return "PUMP CONDITION"
@@ -26,14 +26,14 @@ enum TrackFamily: String, Codable, Sendable, CaseIterable, Hashable {
     }
 }
 
-enum TrackCadence: String, Codable, Sendable, Hashable {
+public enum TrackCadence: String, Codable, Sendable, Hashable {
     case x3 = "3x"
     case x4 = "4x"
     case x5 = "5x"
     case custom
 }
 
-enum DayKind: String, Codable, Sendable, Hashable {
+public enum DayKind: String, Codable, Sendable, Hashable {
     case workout
     case activeRecovery = "active_recovery"
     case mobility
@@ -41,13 +41,13 @@ enum DayKind: String, Codable, Sendable, Hashable {
     case lesson
 }
 
-enum MicrocycleKind: String, Codable, Sendable, Hashable {
+public enum MicrocycleKind: String, Codable, Sendable, Hashable {
     case standard
     case bridgeWeek    = "bridge_week"
     case deload
     case orphanBridge  = "orphan_bridge"
 
-    var displayLabel: String {
+    public var displayLabel: String {
         switch self {
         case .standard:     return "Training"
         case .bridgeWeek:   return "Bridge Week"
@@ -57,14 +57,14 @@ enum MicrocycleKind: String, Codable, Sendable, Hashable {
     }
 }
 
-enum MesocycleIntent: String, Codable, Sendable, Hashable, CaseIterable {
+public enum MesocycleIntent: String, Codable, Sendable, Hashable, CaseIterable {
     case hypertrophy
     case strength
     case conditioning
     case mixed
     case deload
 
-    var displayLabel: String {
+    public var displayLabel: String {
         switch self {
         case .hypertrophy:   return "Hypertrophy"
         case .strength:      return "Strength"

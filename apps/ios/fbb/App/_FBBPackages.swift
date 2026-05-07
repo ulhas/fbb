@@ -6,3 +6,5 @@
 // the shared package remains the single source of truth.
 
 @_exported import FBBDesignSystem
+@_exported import FBBWorkoutKitCore
+@_exported import FBBWorkoutKitNet

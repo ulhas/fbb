@@ -1,48 +1,8 @@
 import Foundation
 
-// Wire format for POST /workouts/sessions and the response. Snake_case is
-// converted via JSONEncoder.keyEncodingStrategy = .convertToSnakeCase, so
-// the iOS struct is camelCase. This struct round-trips to and from the
-// server, so the same DTO is used to read history (GET /:id).
-
-struct WorkoutSessionPayload: Codable, Hashable, Sendable {
-    let clientSessionId: UUID
-    let trackCode: String
-    let scheduledOn: String
-    let dayId: String?
-    let startedAt: Date
-    let endedAt: Date?
-    let totalElapsedSeconds: Int
-    let status: String         // "completed" | "abandoned"
-    let notes: String?
-    let weightUnit: String     // "kg" | "lb"
-    let setLogs: [SetLogPayload]
-    let groupScores: [GroupScorePayload]
-
-    struct SetLogPayload: Codable, Hashable, Sendable {
-        let sectionPosition: Int
-        let groupPosition: Int
-        let exercisePosition: Int
-        let setPosition: Int
-        let perSide: String?
-        let outcome: String
-        let actualReps: Int?
-        let actualWeightKg: Double?
-        let actualRpe: Double?
-        let restTakenSeconds: Int?
-        let completedAt: Date
-    }
-
-    struct GroupScorePayload: Codable, Hashable, Sendable {
-        let sectionPosition: Int
-        let groupPosition: Int
-        let prescriptionMode: String
-        let rounds: Int?
-        let partialReps: Int?
-        let finishSeconds: Int?
-        let totalReps: Int?
-    }
-}
+// Factory for building WorkoutSessionPayload from the in-memory engine
+// session. The base Codable struct lives in FBBWorkoutKitCore so the watch
+// can use it without dragging in the iOS-only WorkoutSession type.
 
 extension WorkoutSessionPayload {
     /// Build the wire payload from an in-memory session. The session must

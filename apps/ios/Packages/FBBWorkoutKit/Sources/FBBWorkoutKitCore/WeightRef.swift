@@ -5,7 +5,7 @@ import Foundation
 // (so JSON `load_kg_male` -> CodingKey `loadKgMale`). The `kind` value stays
 // snake_case at the wire level and is matched explicitly here.
 
-enum WeightRef: Codable, Hashable, Sendable {
+public enum WeightRef: Codable, Hashable, Sendable {
     case none
     case bodyweight
     case absolute(loadKgMale: Double?, loadKgFemale: Double?, raw: String?)
@@ -30,7 +30,7 @@ enum WeightRef: Codable, Hashable, Sendable {
         case assistanceMatchRepMax = "assistance_match_rep_max"
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
         let raw = try c.decode(String.self, forKey: .kind)
         guard let tag = Tag(rawValue: raw) else {
@@ -69,7 +69,7 @@ enum WeightRef: Codable, Hashable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: Keys.self)
         switch self {
         case .none:

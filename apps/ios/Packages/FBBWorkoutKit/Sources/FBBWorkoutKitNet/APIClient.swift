@@ -1,10 +1,11 @@
 import Foundation
+import FBBWorkoutKitCore
 
 /// Read-side HTTP client for the API.
 ///
 /// In-memory caching only (Phase 1). Disk persistence (PowerSync / SwiftData)
 /// is Phase 2.
-actor APIClient {
+public actor APIClient {
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
@@ -15,7 +16,7 @@ actor APIClient {
     private var meCache: Me?
     private var trackCatalogCache: [TrackCatalogRow]?
 
-    init(session: URLSession = .shared) {
+    public init(session: URLSession = .shared) {
         self.session = session
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -29,21 +30,21 @@ actor APIClient {
 
     // MARK: - Training-week reads (stale-while-revalidate via `forceRefresh`)
 
-    func listWeeks(forceRefresh: Bool = false) async throws -> [TrainingWeekSummaryRow] {
+    public func listWeeks(forceRefresh: Bool = false) async throws -> [TrainingWeekSummaryRow] {
         if !forceRefresh, let cached = weekList { return cached }
         let value: [TrainingWeekSummaryRow] = try await get(.listWeeks)
         weekList = value
         return value
     }
 
-    func week(_ weekStartsOn: String, forceRefresh: Bool = false) async throws -> TrainingWeekDetailRow {
+    public func week(_ weekStartsOn: String, forceRefresh: Bool = false) async throws -> TrainingWeekDetailRow {
         if !forceRefresh, let cached = weekIndex[weekStartsOn] { return cached }
         let value: TrainingWeekDetailRow = try await get(.weekDetail(weekStartsOn: weekStartsOn))
         weekIndex[weekStartsOn] = value
         return value
     }
 
-    func day(weekStartsOn: String, scheduledOn: String, forceRefresh: Bool = false) async throws -> TrainingWeekDayDetailRow {
+    public func day(weekStartsOn: String, scheduledOn: String, forceRefresh: Bool = false) async throws -> TrainingWeekDayDetailRow {
         let key = "\(weekStartsOn)#\(scheduledOn)"
         if !forceRefresh, let cached = dayDetail[key] { return cached }
         let value: TrainingWeekDayDetailRow =
@@ -54,14 +55,14 @@ actor APIClient {
 
     // MARK: - User reads
 
-    func me(forceRefresh: Bool = false) async throws -> Me {
+    public func me(forceRefresh: Bool = false) async throws -> Me {
         if !forceRefresh, let cached = meCache { return cached }
         let value: Me = try await get(.me)
         meCache = value
         return value
     }
 
-    func tracksCatalog(forceRefresh: Bool = false) async throws -> [TrackCatalogRow] {
+    public func tracksCatalog(forceRefresh: Bool = false) async throws -> [TrackCatalogRow] {
         if !forceRefresh, let cached = trackCatalogCache { return cached }
         let value: [TrackCatalogRow] = try await get(.meTracks)
         trackCatalogCache = value
@@ -70,12 +71,12 @@ actor APIClient {
 
     // MARK: - User writes
 
-    func followTrack(_ code: String) async throws {
+    public func followTrack(_ code: String) async throws {
         try await voidRequest(.followTrack(code: code), method: "POST")
         invalidateUserCache()
     }
 
-    func unfollowTrack(_ code: String) async throws {
+    public func unfollowTrack(_ code: String) async throws {
         try await voidRequest(.unfollowTrack(code: code), method: "DELETE")
         invalidateUserCache()
     }
@@ -86,7 +87,7 @@ actor APIClient {
     /// that as its upsert key, so a retry from a flaky network produces
     /// no duplicates.
     @discardableResult
-    func postWorkoutSession(
+    public func postWorkoutSession(
         _ payload: WorkoutSessionPayload
     ) async throws -> WorkoutSessionPayload {
         let body: Data
@@ -115,7 +116,7 @@ actor APIClient {
 
     /// Drops every cached value. Pull-to-refresh delegates to per-key
     /// `forceRefresh: true` instead, but this is here for logout / account switch.
-    func clearCache() {
+    public func clearCache() {
         weekList = nil
         weekIndex.removeAll()
         dayDetail.removeAll()
