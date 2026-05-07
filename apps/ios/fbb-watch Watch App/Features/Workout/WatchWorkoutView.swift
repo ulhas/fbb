@@ -2,6 +2,7 @@ import SwiftUI
 import WatchKit
 import FBBDesignSystem
 import FBBWorkoutKitCore
+import FBBWorkoutKitNet
 
 /// Active session screen. Paged TabView with three pages — Set / Rest /
 /// Controls. Rest page is auto-presented when the engine reports a rest
@@ -30,8 +31,22 @@ struct WatchWorkoutView: View {
                         path.append(WatchRoute.summary)
                     },
                     onAbandon: { reason in
+                        // Abandon skips the Summary screen — the user already
+                        // confirmed they want out, no point making them tap
+                        // through stats they don't care about. Capture the
+                        // session ref BEFORE clearing the store, kick off a
+                        // best-effort upload so the server records the
+                        // abandoned attempt (SessionSync.upload snapshots a
+                        // pendingSync blob first, so a flaky network just
+                        // queues for the next foreground retry), then pop
+                        // straight to home.
+                        let abandoned = session
                         session.abandonWorkout(reason: reason)
-                        path.append(WatchRoute.summary)
+                        Task.detached {
+                            _ = await SessionSync.upload(abandoned, api: env.api)
+                        }
+                        env.store.clear()
+                        path = NavigationPath()
                     }
                 )
                 .tag(2)
@@ -42,10 +57,9 @@ struct WatchWorkoutView: View {
                 withAnimation { pageIndex = isResting ? 1 : 0 }
             }
             .onChange(of: session.phase) { _, newPhase in
+                // Only auto-route to Summary on a clean Finish. Abandon is
+                // handled inline above (skips Summary, pops to home).
                 if case .summary = newPhase {
-                    path.append(WatchRoute.summary)
-                }
-                if case .abandoned = newPhase {
                     path.append(WatchRoute.summary)
                 }
             }

@@ -73,6 +73,17 @@ struct WatchSummaryView: View {
                         .font(.fbb.caption)
                         .foregroundStyle(Color.semanticError)
                         .multilineTextAlignment(.center)
+
+                    // Escape hatch — the pendingSync blob has already been
+                    // written, so leaving here keeps the data and the next
+                    // foreground will retry the upload via drainPending.
+                    Button {
+                        env.store.clear()
+                        path = NavigationPath()
+                    } label: {
+                        Label("Done", systemImage: "house.fill")
+                    }
+                    .buttonStyle(.fbbSecondary)
                 }
             }
             .padding(Spacing.xs)
