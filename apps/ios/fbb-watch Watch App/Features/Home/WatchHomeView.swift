@@ -27,39 +27,91 @@ struct WatchHomeView: View {
 
     @ViewBuilder
     private func content(for vm: WatchHomeViewModel) -> some View {
-        switch vm.state {
-        case .idle, .loading:
-            ProgressView()
-                .progressViewStyle(.circular)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 0) {
+            dateStepper(vm: vm)
+            Divider()
+            switch vm.state {
+            case .idle, .loading:
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-        case .empty(let reason):
-            emptyState(reason: reason, vm: vm)
+            case .empty(let reason):
+                emptyState(reason: reason, vm: vm)
 
-        case .failed(let message):
-            failedState(message: message, vm: vm)
+            case .failed(let message):
+                failedState(message: message, vm: vm)
 
-        case .loaded(let cells, let displayedDate, let isToday):
-            loadedList(cells: cells, displayedDate: displayedDate, isToday: isToday)
+            case .loaded(let cells, _, _):
+                loadedList(cells: cells)
+            }
         }
+    }
+
+    private func dateStepper(vm: WatchHomeViewModel) -> some View {
+        HStack(spacing: Spacing.xxs) {
+            Button {
+                vm.goToPrevious()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .bold))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(vm.canGoPrevious ? Color.fbbOrange : Color.inkMuted.opacity(0.5))
+            .disabled(!vm.canGoPrevious)
+
+            VStack(spacing: 0) {
+                Text(currentDateLabel(vm: vm))
+                    .font(.fbb.watchTitle)
+                    .foregroundStyle(Color.inkPrimary)
+                if let date = vm.selectedDate {
+                    Text(ISO8601.weekdayShort(date))
+                        .font(.fbb.label)
+                        .foregroundStyle(Color.inkMuted)
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            Button {
+                vm.goToNext()
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .bold))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(vm.canGoNext ? Color.fbbOrange : Color.inkMuted.opacity(0.5))
+            .disabled(!vm.canGoNext)
+        }
+        .padding(.horizontal, Spacing.xs)
+        .padding(.bottom, Spacing.xxs)
+    }
+
+    private func currentDateLabel(vm: WatchHomeViewModel) -> String {
+        guard let selected = vm.selectedDate else { return "—" }
+        return selected == ISO8601.todayString() ? "Today" : ISO8601.prettyDate(selected)
     }
 
     private func emptyState(reason: String, vm: WatchHomeViewModel) -> some View {
         VStack(spacing: Spacing.xs) {
             Image(systemName: "figure.run")
-                .font(.system(size: 36, weight: .semibold))
+                .font(.system(size: 32, weight: .semibold))
                 .foregroundStyle(Color.inkMuted)
             Text(reason)
                 .font(.fbb.body)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .minimumScaleFactor(0.85)
             Button("Retry") {
                 Task { await vm.load(force: true) }
             }
             .buttonStyle(.bordered)
             .tint(.fbbOrange)
         }
-        .padding()
+        .padding(.horizontal, Spacing.sm)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func failedState(message: String, vm: WatchHomeViewModel) -> some View {
@@ -77,11 +129,12 @@ struct WatchHomeView: View {
             .buttonStyle(.bordered)
             .tint(.fbbOrange)
         }
-        .padding()
+        .padding(.horizontal, Spacing.sm)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
-    private func loadedList(cells: [TrainingWeekDayCellRow], displayedDate: String, isToday: Bool) -> some View {
+    private func loadedList(cells: [TrainingWeekDayCellRow]) -> some View {
         List {
             // Resume in-progress card pinned on top when an active session exists.
             if env.store.hasRunningSession, let active = env.store.activeSession {
@@ -115,24 +168,18 @@ struct WatchHomeView: View {
                 }
             }
 
-            Section {
-                ForEach(cells) { cell in
-                    DayCellRow(cell: cell) {
-                        let session = WorkoutSession(
-                            day: cell.day,
-                            trackCode: cell.track.trackCode,
-                            weekStartsOn: cell.track.microcycle.startsOn,
-                            scheduledOn: cell.day.scheduledOn
-                        )
-                        env.store.attach(session)
-                        env.store.start()
-                        path.append(WatchRoute.activeSession)
-                    }
+            ForEach(cells) { cell in
+                DayCellRow(cell: cell) {
+                    let session = WorkoutSession(
+                        day: cell.day,
+                        trackCode: cell.track.trackCode,
+                        weekStartsOn: cell.track.microcycle.startsOn,
+                        scheduledOn: cell.day.scheduledOn
+                    )
+                    env.store.attach(session)
+                    env.store.start()
+                    path.append(WatchRoute.activeSession)
                 }
-            } header: {
-                Text(isToday ? "Today" : ISO8601.prettyDate(displayedDate))
-                    .font(.fbb.label)
-                    .foregroundStyle(Color.inkMuted)
             }
         }
         .listStyle(.carousel)

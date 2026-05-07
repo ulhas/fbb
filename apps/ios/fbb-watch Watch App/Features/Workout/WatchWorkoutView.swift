@@ -79,6 +79,45 @@ struct WatchSetCard: View {
     var body: some View {
         let _ = session.tickCounter
 
+        if currentSet == nil {
+            // Day has no loggable sets (lesson/rest day, or sentinel cursor).
+            // Surface this honestly with a way out instead of "SET 0 OF 0"
+            // and blank inputs.
+            emptyDayView
+        } else {
+            mainBody
+        }
+    }
+
+    private var emptyDayView: some View {
+        VStack(spacing: Spacing.sm) {
+            topContextBar
+            Spacer(minLength: 0)
+            Image(systemName: "tray")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(Color.inkMuted)
+            Text("Nothing to log here")
+                .font(.fbb.watchTitle)
+                .foregroundStyle(Color.inkPrimary)
+                .multilineTextAlignment(.center)
+            Text("This day doesn't have any sets to track on watch.")
+                .font(.fbb.caption)
+                .foregroundStyle(Color.inkSecondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .minimumScaleFactor(0.85)
+            Spacer(minLength: 0)
+            Button {
+                session.endWorkout()
+            } label: {
+                Label("Finish", systemImage: "flag.checkered")
+            }
+            .buttonStyle(.fbbPrimary)
+        }
+        .padding(.horizontal, Spacing.xs)
+    }
+
+    private var mainBody: some View {
         VStack(alignment: .leading, spacing: Spacing.xxs) {
             // 1. Top context bar
             topContextBar
@@ -489,7 +528,7 @@ private struct WatchControlsView: View {
             Button {
                 confirmingAbandon = true
             } label: {
-                Text("Abandon")
+                Text("Abandon workout")
                     .font(.fbb.caption.bold())
                     .foregroundStyle(Color.fbbStop)
             }
@@ -497,15 +536,17 @@ private struct WatchControlsView: View {
         }
         .padding(.horizontal, Spacing.xs)
         .confirmationDialog(
-            "Discard this workout?",
+            "Discard the entire workout?",
             isPresented: $confirmingAbandon,
             titleVisibility: .visible
         ) {
-            Button("Discard", role: .destructive) {
+            Button("Discard workout", role: .destructive) {
                 haptic(.failure)
                 onAbandon("user-discard")
             }
-            Button("Cancel", role: .cancel) {}
+            Button("Keep going", role: .cancel) {}
+        } message: {
+            Text("Logged sets will be saved, but the workout won't be marked complete.")
         }
     }
 

@@ -12,26 +12,33 @@ public struct Cursor: Codable, Hashable, Sendable {
     public var perSideProgress: PerSideProgress
 
     public static func start(in day: ParsedDay) -> Cursor {
-        guard let firstSection = day.sections.first,
-              let firstGroup = firstSection.groups.first,
-              let firstExercise = firstGroup.exercises.first,
-              let firstSet = firstExercise.sets.first else {
-            // Defensive: a `kind == .rest` day has no sections. The engine
-            // shouldn't be started for those, but if it is we fall back to
-            // a sentinel cursor that the UI will treat as "nothing to do".
-            return Cursor(
-                sectionPosition: 0, groupPosition: 0,
-                exercisePosition: 0, setPosition: 0,
-                perSideProgress: .none
-            )
+        // Walk every (section, group, exercise) and pick the first one that
+        // actually has sets. Days in the wild commonly have leading
+        // exercises with `sets: []` (placeholder rows that stand in for
+        // coaching notes or warm-up cues), and landing on those would
+        // strand the UI on an empty state with no way to start logging.
+        for section in day.sections {
+            for group in section.groups {
+                for exercise in group.exercises {
+                    if let firstSet = exercise.sets.first {
+                        return Cursor(
+                            sectionPosition: section.position,
+                            groupPosition: group.position,
+                            exercisePosition: exercise.position,
+                            setPosition: firstSet.position,
+                            perSideProgress: .none
+                        )
+                    }
+                }
+            }
         }
-        let isUnilateral = firstSet.perSide
+        // Defensive: `kind == .rest` / `.lesson` days have no sets at all.
+        // The engine shouldn't be started for those, but if it is we fall
+        // back to a sentinel cursor that the UI will treat as "nothing to do".
         return Cursor(
-            sectionPosition: firstSection.position,
-            groupPosition: firstGroup.position,
-            exercisePosition: firstExercise.position,
-            setPosition: firstSet.position,
-            perSideProgress: isUnilateral ? .none : .none
+            sectionPosition: 0, groupPosition: 0,
+            exercisePosition: 0, setPosition: 0,
+            perSideProgress: .none
         )
     }
 
