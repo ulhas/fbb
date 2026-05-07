@@ -328,6 +328,19 @@ public final class WorkoutSession {
         )
     }
 
+    /// Open a rest timer on demand (no preceding set required) — the watch
+    /// uses this when the user wants to time a manual rest between
+    /// exercises and the prescribed set didn't carry a `restAfterSeconds`.
+    /// Replaces any existing rest.
+    public func startRest(plannedSeconds: Int, now: Date = Date()) {
+        let bounded = max(1, plannedSeconds)
+        restAfter = RestState(
+            after: cursor.setId,
+            plannedSeconds: bounded,
+            startedAt: now
+        )
+    }
+
     // MARK: - Per-exercise timer actions
 
     /// Start the duration timer on the set the cursor is pointing at —

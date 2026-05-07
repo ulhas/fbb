@@ -415,14 +415,72 @@ private struct WatchRestRing: View {
 
     var body: some View {
         let _ = session.tickCounter
-        let now = Date()
-        let rest = session.restAfter
-        let remaining = rest?.remainingSeconds(now: now) ?? 0
-        let total = max(rest?.plannedSeconds ?? 60, 1)
-        let progress = max(0.0, min(1.0, Double(remaining) / Double(total)))
-        let isOvertime = (rest?.isOvertime(now: now)) ?? false
+        if session.restAfter == nil {
+            startRestView
+        } else {
+            activeRestView
+        }
+    }
 
-        VStack(spacing: Spacing.xxs) {
+    private var startRestView: some View {
+        VStack(spacing: Spacing.sm) {
+            HStack(spacing: 4) {
+                Image(systemName: "timer")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("REST TIMER")
+                    .font(.fbb.label)
+            }
+            .foregroundStyle(Color.inkMuted)
+
+            Text("Start a rest")
+                .font(.fbb.watchTitle)
+                .foregroundStyle(Color.inkPrimary)
+
+            HStack(spacing: Spacing.xxs) {
+                ForEach([30, 60, 90], id: \.self) { secs in
+                    presetChip(seconds: secs)
+                }
+            }
+            HStack(spacing: Spacing.xxs) {
+                presetChip(seconds: 120, label: "2m")
+                presetChip(seconds: 180, label: "3m")
+                presetChip(seconds: 300, label: "5m")
+            }
+
+            Text("Rest auto-starts after sets that prescribe one.")
+                .font(.fbb.label)
+                .foregroundStyle(Color.inkMuted)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+        }
+        .padding(.horizontal, Spacing.xs)
+    }
+
+    private func presetChip(seconds: Int, label: String? = nil) -> some View {
+        Button {
+            session.startRest(plannedSeconds: seconds)
+            haptic(.start)
+        } label: {
+            Text(label ?? "\(seconds)s")
+                .font(.fbb.caption.bold())
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(Color.fbbTeal, in: Capsule())
+                .foregroundStyle(.white)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var activeRestView: some View {
+        let now = Date()
+        let rest = session.restAfter!
+        let remaining = rest.remainingSeconds(now: now)
+        let total = max(rest.plannedSeconds, 1)
+        let progress = max(0.0, min(1.0, Double(remaining) / Double(total)))
+        let isOvertime = rest.isOvertime(now: now)
+
+        return VStack(spacing: Spacing.xxs) {
             HStack(spacing: 4) {
                 Text("REST")
                     .font(.fbb.label)
