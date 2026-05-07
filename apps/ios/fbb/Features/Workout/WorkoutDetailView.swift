@@ -123,7 +123,8 @@ struct WorkoutDetailView: View {
                 day: cell.day,
                 trackCode: trackCode,
                 weekStartsOn: weekStartsOn,
-                scheduledOn: scheduledOn
+                scheduledOn: scheduledOn,
+                trackDisplayName: cell.track.displayName
             )
             workoutStore.attach(session)
             loadError = nil

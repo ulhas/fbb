@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		485A0D062FAC624700AA8130 /* fbb-watch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 485A0CE62FAC624700AA8130 /* fbb-watch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		485A1BC62FAC98E900AA8130 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 485A1BC52FAC98E900AA8130 /* WidgetKit.framework */; };
+		485A1BC82FAC98E900AA8130 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 485A1BC72FAC98E900AA8130 /* SwiftUI.framework */; };
+		485A1BD52FAC98E900AA8130 /* fbbWorkoutWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 485A1BC32FAC98E900AA8130 /* fbbWorkoutWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		FBBB001000000000000000A1 /* FBBDesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = FBBD001000000000000000A1 /* FBBDesignSystem */; };
 		FBBB001000000000000000A2 /* FBBWorkoutKitCore in Frameworks */ = {isa = PBXBuildFile; productRef = FBBD001000000000000000A2 /* FBBWorkoutKitCore */; };
 		FBBB001000000000000000A3 /* FBBWorkoutKitNet in Frameworks */ = {isa = PBXBuildFile; productRef = FBBD001000000000000000A3 /* FBBWorkoutKitNet */; };
@@ -52,6 +55,13 @@
 			remoteGlobalIDString = 485A0CE52FAC624700AA8130;
 			remoteInfo = "fbb-watch Watch App";
 		};
+		485A1BD32FAC98E900AA8130 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 48290F0D2FAA354400DC19DE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 485A1BC22FAC98E900AA8130;
+			remoteInfo = fbbWorkoutWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -66,6 +76,17 @@
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		485A1BDA2FAC98E900AA8130 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				485A1BD52FAC98E900AA8130 /* fbbWorkoutWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -75,11 +96,35 @@
 		485A0CE62FAC624700AA8130 /* fbb-watch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "fbb-watch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		485A0CF22FAC624700AA8130 /* fbb-watch Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "fbb-watch Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		485A0CFC2FAC624700AA8130 /* fbb-watch Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "fbb-watch Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		485A1BC32FAC98E900AA8130 /* fbbWorkoutWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = fbbWorkoutWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		485A1BC52FAC98E900AA8130 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		485A1BC72FAC98E900AA8130 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		485A1BF92FAC9A3400AA8130 /* fbbWorkoutWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = fbbWorkoutWidgetExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		485A1BD62FAC98E900AA8130 /* Exceptions for "fbbWorkoutWidget" folder in "fbbWorkoutWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 485A1BC22FAC98E900AA8130 /* fbbWorkoutWidgetExtension */;
+		};
+		485A1BF82FAC9A0600AA8130 /* Exceptions for "fbb" folder in "fbbWorkoutWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Features/Workout/LiveActivity/WorkoutActivityAttributes.swift,
+			);
+			target = 485A1BC22FAC98E900AA8130 /* fbbWorkoutWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		48290F172FAA354400DC19DE /* fbb */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				485A1BF82FAC9A0600AA8130 /* Exceptions for "fbb" folder in "fbbWorkoutWidgetExtension" target */,
+			);
 			path = fbb;
 			sourceTree = "<group>";
 		};
@@ -106,6 +151,14 @@
 		485A0CFF2FAC624700AA8130 /* fbb-watch Watch AppUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "fbb-watch Watch AppUITests";
+			sourceTree = "<group>";
+		};
+		485A1BC92FAC98E900AA8130 /* fbbWorkoutWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				485A1BD62FAC98E900AA8130 /* Exceptions for "fbbWorkoutWidget" folder in "fbbWorkoutWidgetExtension" target */,
+			);
+			path = fbbWorkoutWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -159,18 +212,30 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		485A1BC02FAC98E900AA8130 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				485A1BC82FAC98E900AA8130 /* SwiftUI.framework in Frameworks */,
+				485A1BC62FAC98E900AA8130 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		48290F0C2FAA354400DC19DE = {
 			isa = PBXGroup;
 			children = (
+				485A1BF92FAC9A3400AA8130 /* fbbWorkoutWidgetExtension.entitlements */,
 				48290F172FAA354400DC19DE /* fbb */,
 				48290F252FAA354500DC19DE /* fbbTests */,
 				48290F2F2FAA354500DC19DE /* fbbUITests */,
 				485A0CE72FAC624700AA8130 /* fbb-watch Watch App */,
 				485A0CF52FAC624700AA8130 /* fbb-watch Watch AppTests */,
 				485A0CFF2FAC624700AA8130 /* fbb-watch Watch AppUITests */,
+				485A1BC92FAC98E900AA8130 /* fbbWorkoutWidget */,
+				485A1BC42FAC98E900AA8130 /* Frameworks */,
 				48290F162FAA354400DC19DE /* Products */,
 			);
 			sourceTree = "<group>";
@@ -184,8 +249,18 @@
 				485A0CE62FAC624700AA8130 /* fbb-watch Watch App.app */,
 				485A0CF22FAC624700AA8130 /* fbb-watch Watch AppTests.xctest */,
 				485A0CFC2FAC624700AA8130 /* fbb-watch Watch AppUITests.xctest */,
+				485A1BC32FAC98E900AA8130 /* fbbWorkoutWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		485A1BC42FAC98E900AA8130 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				485A1BC52FAC98E900AA8130 /* WidgetKit.framework */,
+				485A1BC72FAC98E900AA8130 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -199,11 +274,13 @@
 				48290F122FAA354400DC19DE /* Frameworks */,
 				48290F132FAA354400DC19DE /* Resources */,
 				485A0CDB2FAC5E9300AA8130 /* Embed Watch Content */,
+				485A1BDA2FAC98E900AA8130 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				485A0D052FAC624700AA8130 /* PBXTargetDependency */,
+				485A1BD42FAC98E900AA8130 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				48290F172FAA354400DC19DE /* fbb */,
@@ -335,6 +412,28 @@
 			productReference = 485A0CFC2FAC624700AA8130 /* fbb-watch Watch AppUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		485A1BC22FAC98E900AA8130 /* fbbWorkoutWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 485A1BD72FAC98E900AA8130 /* Build configuration list for PBXNativeTarget "fbbWorkoutWidgetExtension" */;
+			buildPhases = (
+				485A1BBF2FAC98E900AA8130 /* Sources */,
+				485A1BC02FAC98E900AA8130 /* Frameworks */,
+				485A1BC12FAC98E900AA8130 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				485A1BC92FAC98E900AA8130 /* fbbWorkoutWidget */,
+			);
+			name = fbbWorkoutWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = fbbWorkoutWidgetExtension;
+			productReference = 485A1BC32FAC98E900AA8130 /* fbbWorkoutWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -367,6 +466,9 @@
 						CreatedOnToolsVersion = 26.4.1;
 						TestTargetID = 485A0CE52FAC624700AA8130;
 					};
+					485A1BC22FAC98E900AA8130 = {
+						CreatedOnToolsVersion = 26.4.1;
+					};
 				};
 			};
 			buildConfigurationList = 48290F102FAA354400DC19DE /* Build configuration list for PBXProject "fbb" */;
@@ -392,6 +494,7 @@
 				485A0CE52FAC624700AA8130 /* fbb-watch Watch App */,
 				485A0CF12FAC624700AA8130 /* fbb-watch Watch AppTests */,
 				485A0CFB2FAC624700AA8130 /* fbb-watch Watch AppUITests */,
+				485A1BC22FAC98E900AA8130 /* fbbWorkoutWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -433,6 +536,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		485A0CFA2FAC624700AA8130 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		485A1BC12FAC98E900AA8130 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -484,6 +594,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		485A1BBF2FAC98E900AA8130 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -511,6 +628,11 @@
 			isa = PBXTargetDependency;
 			target = 485A0CE52FAC624700AA8130 /* fbb-watch Watch App */;
 			targetProxy = 485A0D042FAC624700AA8130 /* PBXContainerItemProxy */;
+		};
+		485A1BD42FAC98E900AA8130 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 485A1BC22FAC98E900AA8130 /* fbbWorkoutWidgetExtension */;
+			targetProxy = 485A1BD32FAC98E900AA8130 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -643,6 +765,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Functional Bodybuilding";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -689,6 +812,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Functional Bodybuilding";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -728,19 +852,20 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.functional-bodybuilding.fbbTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/fbb.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/fbb";
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
@@ -753,19 +878,20 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.functional-bodybuilding.fbbTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/fbb.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/fbb";
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
@@ -777,19 +903,20 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.functional-bodybuilding.fbbUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_TARGET_NAME = fbb;
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
@@ -801,19 +928,20 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MACOSX_DEPLOYMENT_TARGET = 26.3;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.functional-bodybuilding.fbbUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = 1;
 				TEST_TARGET_NAME = fbb;
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
@@ -848,7 +976,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 26.4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Debug;
 		};
@@ -882,7 +1010,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				VALIDATE_PRODUCT = YES;
-				WATCHOS_DEPLOYMENT_TARGET = 26.4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Release;
 		};
@@ -904,7 +1032,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/fbb-watch Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/fbb-watch Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 26.4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Debug;
 		};
@@ -927,7 +1055,7 @@
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/fbb-watch Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/fbb-watch Watch App";
 				VALIDATE_PRODUCT = YES;
-				WATCHOS_DEPLOYMENT_TARGET = 26.4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Release;
 		};
@@ -948,7 +1076,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_TARGET_NAME = "fbb-watch Watch App";
-				WATCHOS_DEPLOYMENT_TARGET = 26.4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Debug;
 		};
@@ -970,7 +1098,82 @@
 				TARGETED_DEVICE_FAMILY = 4;
 				TEST_TARGET_NAME = "fbb-watch Watch App";
 				VALIDATE_PRODUCT = YES;
-				WATCHOS_DEPLOYMENT_TARGET = 26.4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
+		485A1BD82FAC98E900AA8130 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = fbbWorkoutWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = fbbWorkoutWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = fbbWorkoutWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.functional-bodybuilding.fbb.fbbWorkoutWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		485A1BD92FAC98E900AA8130 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = fbbWorkoutWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = fbbWorkoutWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = fbbWorkoutWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.functional-bodybuilding.fbb.fbbWorkoutWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -1036,6 +1239,15 @@
 			buildConfigurations = (
 				485A0D0E2FAC624700AA8130 /* Debug */,
 				485A0D0F2FAC624700AA8130 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		485A1BD72FAC98E900AA8130 /* Build configuration list for PBXNativeTarget "fbbWorkoutWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				485A1BD82FAC98E900AA8130 /* Debug */,
+				485A1BD92FAC98E900AA8130 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

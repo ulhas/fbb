@@ -8,6 +8,13 @@ struct fbb_watch_Watch_AppApp: App {
         WindowGroup {
             RootViewWithRoutes()
                 .environment(env)
+                .task {
+                    // Bootstrap the WC relay once. The sender wires
+                    // itself to WorkoutStore lifecycle callbacks so
+                    // session start/update/end forwards to the iPhone
+                    // Live Activity automatically.
+                    WatchActivityRelaySender.shared.bootstrap(store: env.store)
+                }
         }
     }
 }

@@ -24,12 +24,16 @@ public final class WorkoutSession {
     public let weekStartsOn: String
     public let scheduledOn: String
     public let sessionId: UUID
+    /// Optional human-readable track name (e.g. "Pump", "Build"). Carried
+    /// here so the Live Activity / lock-screen surfaces can render a title
+    /// without having to re-resolve from track metadata.
+    public let trackDisplayName: String?
 
     // Time anchors
-    private(set) var startedAt: Date?
-    private(set) var endedAt: Date?
-    private(set) var pausedAccumulatedSeconds: TimeInterval = 0
-    private var pauseStartedAt: Date?
+    public private(set) var startedAt: Date?
+    public private(set) var endedAt: Date?
+    public private(set) var pausedAccumulatedSeconds: TimeInterval = 0
+    public private(set) var pauseStartedAt: Date?
 
     // Phase + cursor + block
     public var phase: SessionPhase = .preStart
@@ -61,7 +65,8 @@ public final class WorkoutSession {
         weekStartsOn: String,
         scheduledOn: String,
         sessionId: UUID = UUID(),
-        weightUnit: WeightUnit = .kg
+        weightUnit: WeightUnit = .kg,
+        trackDisplayName: String? = nil
     ) {
         self.day = day
         self.trackCode = trackCode
@@ -69,6 +74,7 @@ public final class WorkoutSession {
         self.scheduledOn = scheduledOn
         self.sessionId = sessionId
         self.weightUnit = weightUnit
+        self.trackDisplayName = trackDisplayName
         self.cursor = Cursor.start(in: day)
     }
 

@@ -174,7 +174,8 @@ struct WatchHomeView: View {
                         day: cell.day,
                         trackCode: cell.track.trackCode,
                         weekStartsOn: cell.track.microcycle.startsOn,
-                        scheduledOn: cell.day.scheduledOn
+                        scheduledOn: cell.day.scheduledOn,
+                        trackDisplayName: cell.track.displayName
                     )
                     env.store.attach(session)
                     env.store.start()

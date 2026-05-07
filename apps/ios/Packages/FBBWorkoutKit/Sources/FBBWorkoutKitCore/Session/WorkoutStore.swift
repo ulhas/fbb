@@ -15,6 +15,14 @@ public final class WorkoutStore {
     public private(set) var activeSession: WorkoutSession?
     private var ticker: SessionTicker?
 
+    // Lifecycle hooks. The package stays platform-neutral (no ActivityKit
+    // / WatchConnectivity imports) — composition roots wire these closures
+    // to the Live Activity controller (iOS) or the WC relay sender (watch).
+    public var onSessionStarted: ((WorkoutSession) -> Void)?
+    public var onSessionEnded:   ((WorkoutSession) -> Void)?
+    public var onSessionCleared: ((WorkoutSession) -> Void)?
+    public var onSessionPauseToggled: ((WorkoutSession) -> Void)?
+
     public init() {}
 
     /// Set when the user starts a workout. Holds the session for the
@@ -33,6 +41,7 @@ public final class WorkoutStore {
         ticker.start()
         self.ticker = ticker
         SessionPersistence.snapshot(session)
+        onSessionStarted?(session)
     }
 
     /// End the running phase (transitions to summary). Stops the ticker
@@ -43,6 +52,7 @@ public final class WorkoutStore {
         ticker?.stop()
         ticker = nil
         SessionPersistence.snapshot(session)
+        onSessionEnded?(session)
     }
 
     public func togglePause() {
@@ -52,15 +62,18 @@ public final class WorkoutStore {
         } else {
             session.pauseWorkout()
         }
+        onSessionPauseToggled?(session)
     }
 
     /// Drop the active session entirely (after a successful sync or
     /// abandonment). The accessory disappears, ticker is fully cleaned
     /// up.
     public func clear() {
+        let cleared = activeSession
         ticker?.stop()
         ticker = nil
         activeSession = nil
+        if let cleared { onSessionCleared?(cleared) }
     }
 
     /// True only when the workout is in flight (not pre-start, not
