@@ -4,14 +4,14 @@ import Foundation
 // only on user action (tap "complete", tap "skip", "next round"), never
 // on a clock tick. Mutating the cursor is the only way to traverse the
 // session — every other piece of state derives from it.
-struct Cursor: Codable, Hashable, Sendable {
-    var sectionPosition: Int
-    var groupPosition: Int
-    var exercisePosition: Int
-    var setPosition: Int
-    var perSideProgress: PerSideProgress
+public struct Cursor: Codable, Hashable, Sendable {
+    public var sectionPosition: Int
+    public var groupPosition: Int
+    public var exercisePosition: Int
+    public var setPosition: Int
+    public var perSideProgress: PerSideProgress
 
-    static func start(in day: ParsedDay) -> Cursor {
+    public static func start(in day: ParsedDay) -> Cursor {
         guard let firstSection = day.sections.first,
               let firstGroup = firstSection.groups.first,
               let firstExercise = firstGroup.exercises.first,
@@ -35,7 +35,7 @@ struct Cursor: Codable, Hashable, Sendable {
         )
     }
 
-    var setId: SetId {
+    public var setId: SetId {
         SetId(
             section: sectionPosition,
             group: groupPosition,
@@ -44,11 +44,11 @@ struct Cursor: Codable, Hashable, Sendable {
         )
     }
 
-    var groupId: GroupId {
+    public var groupId: GroupId {
         GroupId(section: sectionPosition, group: groupPosition)
     }
 
-    var sectionId: SectionId {
+    public var sectionId: SectionId {
         SectionId(section: sectionPosition)
     }
 }
@@ -56,12 +56,12 @@ struct Cursor: Codable, Hashable, Sendable {
 // Pure functions that find adjacent positions in the plan. The engine
 // drives the cursor through these on user actions; UI never calls them
 // directly.
-enum CursorAdvance {
+public enum CursorAdvance {
     /// The next set after `cursor` in plan order. Skips per-side increment
     /// since this is for moving past a fully-completed set; per-side state
     /// is handled by the caller before calling here.
     /// Returns `nil` when the user is at the end of the workout.
-    static func next(after cursor: Cursor, in day: ParsedDay) -> Cursor? {
+    public static func next(after cursor: Cursor, in day: ParsedDay) -> Cursor? {
         guard let section = day.sections.first(where: { $0.position == cursor.sectionPosition }),
               let group = section.groups.first(where: { $0.position == cursor.groupPosition }),
               let exercise = group.exercises.first(where: { $0.position == cursor.exercisePosition }) else {
@@ -122,34 +122,34 @@ enum CursorAdvance {
     }
 
     /// True when this set is the last one in the plan in DFS order.
-    static func isLastSet(_ cursor: Cursor, in day: ParsedDay) -> Bool {
+    public static func isLastSet(_ cursor: Cursor, in day: ParsedDay) -> Bool {
         next(after: cursor, in: day) == nil
     }
 
     /// Resolve the prescribed set the cursor points at, if any.
-    static func currentSet(_ cursor: Cursor, in day: ParsedDay) -> ParsedSet? {
+    public static func currentSet(_ cursor: Cursor, in day: ParsedDay) -> ParsedSet? {
         currentExercise(cursor, in: day)?
             .sets.first(where: { $0.position == cursor.setPosition })
     }
 
-    static func currentExercise(_ cursor: Cursor, in day: ParsedDay) -> ParsedExercise? {
+    public static func currentExercise(_ cursor: Cursor, in day: ParsedDay) -> ParsedExercise? {
         currentGroup(cursor, in: day)?
             .exercises.first(where: { $0.position == cursor.exercisePosition })
     }
 
-    static func currentGroup(_ cursor: Cursor, in day: ParsedDay) -> ParsedGroup? {
+    public static func currentGroup(_ cursor: Cursor, in day: ParsedDay) -> ParsedGroup? {
         currentSection(cursor, in: day)?
             .groups.first(where: { $0.position == cursor.groupPosition })
     }
 
-    static func currentSection(_ cursor: Cursor, in day: ParsedDay) -> ParsedSection? {
+    public static func currentSection(_ cursor: Cursor, in day: ParsedDay) -> ParsedSection? {
         day.sections.first(where: { $0.position == cursor.sectionPosition })
     }
 
     /// Whether the *current exercise* is chained into the next (superset).
     /// If true and the user has more sets in the next exercise, rest is
     /// suppressed and a "rotate to next" cue is shown instead.
-    static func isChainedToNext(_ cursor: Cursor, in day: ParsedDay) -> Bool {
+    public static func isChainedToNext(_ cursor: Cursor, in day: ParsedDay) -> Bool {
         guard let ex = currentExercise(cursor, in: day) else { return false }
         return ex.chainedIntoNext
     }

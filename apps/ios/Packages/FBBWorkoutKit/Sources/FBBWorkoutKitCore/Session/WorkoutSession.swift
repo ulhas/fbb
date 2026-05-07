@@ -17,13 +17,13 @@ import Observation
 // `@State`, so SwiftUI observes its property changes for free.
 @Observable
 @MainActor
-final class WorkoutSession {
+public final class WorkoutSession {
     // Inputs (immutable)
-    let day: ParsedDay
-    let trackCode: String
-    let weekStartsOn: String
-    let scheduledOn: String
-    let sessionId: UUID
+    public let day: ParsedDay
+    public let trackCode: String
+    public let weekStartsOn: String
+    public let scheduledOn: String
+    public let sessionId: UUID
 
     // Time anchors
     private(set) var startedAt: Date?
@@ -32,30 +32,30 @@ final class WorkoutSession {
     private var pauseStartedAt: Date?
 
     // Phase + cursor + block
-    var phase: SessionPhase = .preStart
-    var cursor: Cursor
-    var activeBlock: ActiveBlock?
-    var restAfter: RestState?
+    public var phase: SessionPhase = .preStart
+    public var cursor: Cursor
+    public var activeBlock: ActiveBlock?
+    public var restAfter: RestState?
 
     // Logs (append-only-ish)
-    var setLog: [SetLogEntry] = []
-    var groupScores: [GroupId: GroupScore] = [:]
-    var sectionTransitions: [SectionTransition] = []
+    public var setLog: [SetLogEntry] = []
+    public var groupScores: [GroupId: GroupScore] = [:]
+    public var sectionTransitions: [SectionTransition] = []
 
     // Per-exercise duration timers (time-based sets) and inline rests.
-    var exerciseTimers: [SetId: ExerciseTimerState] = [:]
-    var inlineRests: [InlineRestState] = []
+    public var exerciseTimers: [SetId: ExerciseTimerState] = [:]
+    public var inlineRests: [InlineRestState] = []
 
     // User input
-    var notes: String = ""
-    var weightUnit: WeightUnit = .kg
+    public var notes: String = ""
+    public var weightUnit: WeightUnit = .kg
 
     // UI hint: ticks every second so views observing a `tick` property
     // re-render even when only derived values changed. Using a counter
     // keeps Equatable checks cheap.
-    var tickCounter: Int = 0
+    public var tickCounter: Int = 0
 
-    init(
+    public init(
         day: ParsedDay,
         trackCode: String,
         weekStartsOn: String,
@@ -74,7 +74,7 @@ final class WorkoutSession {
 
     // MARK: - Phase transitions
 
-    func startWorkout(now: Date = Date()) {
+    public func startWorkout(now: Date = Date()) {
         guard phase == .preStart else { return }
         startedAt = now
         phase = .running
@@ -92,19 +92,19 @@ final class WorkoutSession {
         rebuildActiveBlock(now: now)
     }
 
-    var isPaused: Bool { pauseStartedAt != nil }
+    public var isPaused: Bool { pauseStartedAt != nil }
 
     /// Music-player-style pause: freezes the total elapsed clock and
     /// every wall-clock-anchored timer (group block, rest, inline
     /// rests, per-exercise duration timers). Resume shifts every anchor
     /// forward by the paused duration so the timers think no time
     /// passed.
-    func pauseWorkout(now: Date = Date()) {
+    public func pauseWorkout(now: Date = Date()) {
         guard phase == .running, pauseStartedAt == nil else { return }
         pauseStartedAt = now
     }
 
-    func resumeWorkout(now: Date = Date()) {
+    public func resumeWorkout(now: Date = Date()) {
         guard let pausedAt = pauseStartedAt else { return }
         let delta = now.timeIntervalSince(pausedAt)
         pausedAccumulatedSeconds += delta
@@ -137,7 +137,7 @@ final class WorkoutSession {
         }
     }
 
-    func endWorkout(now: Date = Date()) {
+    public func endWorkout(now: Date = Date()) {
         guard phase == .running else { return }
         // Settle any in-flight pause first so totalElapsed math is clean.
         if pauseStartedAt != nil { resumeWorkout(now: now) }
@@ -151,7 +151,7 @@ final class WorkoutSession {
         restAfter = nil
     }
 
-    func abandonWorkout(reason: String, now: Date = Date()) {
+    public func abandonWorkout(reason: String, now: Date = Date()) {
         endedAt = now
         if let idx = sectionTransitions.indices.last {
             sectionTransitions[idx].leftAt = now
@@ -166,7 +166,7 @@ final class WorkoutSession {
     /// Mark the current set complete. Captures actual reps/weight/RPE
     /// from `entry`, advances the cursor, and (unless a superset chain is
     /// in progress) opens a rest timer for the post-set rest interval.
-    func completeSet(_ entry: SetEntry, now: Date = Date()) {
+    public func completeSet(_ entry: SetEntry, now: Date = Date()) {
         guard phase == .running else { return }
         guard let prescribed = CursorAdvance.currentSet(cursor, in: day) else { return }
 
@@ -214,7 +214,7 @@ final class WorkoutSession {
 
     /// Mark the current set skipped. Same advance behavior as completing,
     /// but no rest timer fires.
-    func skipSet(now: Date = Date()) {
+    public func skipSet(now: Date = Date()) {
         guard phase == .running else { return }
         guard let prescribed = CursorAdvance.currentSet(cursor, in: day) else { return }
 
@@ -235,7 +235,7 @@ final class WorkoutSession {
 
     /// Undo the most recent set log entry. Engine-only — no UI button
     /// for this in v1, but the back-stack support is in place.
-    func undoLastSet() {
+    public func undoLastSet() {
         guard !setLog.isEmpty else { return }
         let removed = setLog.removeLast()
         // Rewind cursor to the removed entry's set; the next "complete" will
@@ -252,7 +252,7 @@ final class WorkoutSession {
 
     // MARK: - Group score actions (AMRAP / for-time / density)
 
-    func incrementGroupRound() {
+    public func incrementGroupRound() {
         guard case let .capCountdown(state) = activeBlock else { return }
         var next = state
         next.userRoundsCompleted += 1
@@ -262,7 +262,7 @@ final class WorkoutSession {
         }
     }
 
-    func decrementGroupRound() {
+    public func decrementGroupRound() {
         guard case let .capCountdown(state) = activeBlock else { return }
         var next = state
         next.userRoundsCompleted = max(0, next.userRoundsCompleted - 1)
@@ -272,7 +272,7 @@ final class WorkoutSession {
         }
     }
 
-    func setGroupPartialReps(_ reps: Int) {
+    public func setGroupPartialReps(_ reps: Int) {
         guard case let .capCountdown(state) = activeBlock else { return }
         var next = state
         next.userPartialReps = max(0, reps)
@@ -283,7 +283,7 @@ final class WorkoutSession {
     }
 
     /// for_time: user taps "Finish" to record their finish time.
-    func finishForTime(now: Date = Date()) {
+    public func finishForTime(now: Date = Date()) {
         guard case let .capCountdown(state) = activeBlock else { return }
         let finish = state.elapsedSeconds(now: now)
         upsertGroupScore(for: state.groupId, mode: currentGroupMode()) { score in
@@ -295,7 +295,7 @@ final class WorkoutSession {
 
     /// Skip the rest of the current group — useful for "I've done enough
     /// rounds in this AMRAP, move on" in a multi-group section.
-    func skipToNextGroup(now: Date = Date()) {
+    public func skipToNextGroup(now: Date = Date()) {
         guard let section = CursorAdvance.currentSection(cursor, in: day),
               let nextGroup = section.groups.first(where: { $0.position > cursor.groupPosition }) else {
             // No next group in this section — try next section.
@@ -315,11 +315,11 @@ final class WorkoutSession {
         restAfter = nil
     }
 
-    func dismissRest(now: Date = Date()) {
+    public func dismissRest(now: Date = Date()) {
         restAfter = nil
     }
 
-    func extendRest(by seconds: Int, now: Date = Date()) {
+    public func extendRest(by seconds: Int, now: Date = Date()) {
         guard let r = restAfter else { return }
         restAfter = RestState(
             after: r.after,
@@ -334,7 +334,7 @@ final class WorkoutSession {
     /// or any visible time-based set the user taps Start on. We let the
     /// caller pass the SetId so users can pre-start a later round's
     /// timer; only the cursor's set drives advancement.
-    func startExerciseTimer(setId: SetId, plannedSeconds: Int, now: Date = Date()) {
+    public func startExerciseTimer(setId: SetId, plannedSeconds: Int, now: Date = Date()) {
         var state = exerciseTimers[setId]
             ?? ExerciseTimerState(
                 setId: setId,
@@ -347,7 +347,7 @@ final class WorkoutSession {
         exerciseTimers[setId] = state
     }
 
-    func cancelExerciseTimer(setId: SetId) {
+    public func cancelExerciseTimer(setId: SetId) {
         exerciseTimers.removeValue(forKey: setId)
     }
 
@@ -355,7 +355,7 @@ final class WorkoutSession {
     /// the planned duration as the captured "actualReps" (we re-purpose
     /// reps to mean "seconds" for time-kind sets — the wire payload
     /// keeps the same column).
-    func completeDurationSet(setId: SetId, now: Date = Date()) {
+    public func completeDurationSet(setId: SetId, now: Date = Date()) {
         var state = exerciseTimers[setId]
             ?? ExerciseTimerState(setId: setId, plannedSeconds: 0, startedAt: now, completedAt: nil)
         if state.startedAt == nil { state.startedAt = now }
@@ -395,7 +395,7 @@ final class WorkoutSession {
     /// Mark every set at this round position complete across every
     /// exercise in the cursor's current group. Skips already-logged
     /// sets. Used by the "Mark all complete" shortcut.
-    func markRoundComplete(round: Int, now: Date = Date()) {
+    public func markRoundComplete(round: Int, now: Date = Date()) {
         guard let section = CursorAdvance.currentSection(cursor, in: day),
               let group = CursorAdvance.currentGroup(cursor, in: day) else { return }
         for exercise in group.exercises {
@@ -447,7 +447,7 @@ final class WorkoutSession {
     /// group. Used by the "Rest 60 seconds" + Rest button pattern. The
     /// rest is independent of `restAfter` (top-level overlay) — we don't
     /// auto-dismiss the bottom-sheet rest when an inline rest is open.
-    func triggerInlineRest(
+    public func triggerInlineRest(
         groupId: GroupId,
         afterExercisePosition: Int,
         plannedSeconds: Int,
@@ -468,7 +468,7 @@ final class WorkoutSession {
         )
     }
 
-    func dismissInlineRest(_ id: UUID) {
+    public func dismissInlineRest(_ id: UUID) {
         inlineRests.removeAll { $0.id == id }
     }
 
@@ -477,7 +477,7 @@ final class WorkoutSession {
     /// Called once per second by `SessionTicker`. Advances tick counter
     /// and lets observers re-pull derived values. Heavy logic stays out
     /// of here so the per-tick cost is constant.
-    func tick(_ now: Date = Date()) {
+    public func tick(_ now: Date = Date()) {
         guard phase == .running else { return }
         // While paused: bump the counter so paused-duration UI updates,
         // but don't auto-advance any expirations.
@@ -511,7 +511,7 @@ final class WorkoutSession {
 
     // MARK: - Derived
 
-    func totalElapsed(now: Date = Date()) -> TimeInterval {
+    public func totalElapsed(now: Date = Date()) -> TimeInterval {
         guard let started = startedAt else { return 0 }
         let end = endedAt ?? now
         let raw = end.timeIntervalSince(started)
@@ -519,7 +519,7 @@ final class WorkoutSession {
         return max(0, raw - pausedAccumulatedSeconds - liveSincePause)
     }
 
-    func totalElapsedSeconds(now: Date = Date()) -> Int {
+    public func totalElapsedSeconds(now: Date = Date()) -> Int {
         Int(totalElapsed(now: now))
     }
 
@@ -682,13 +682,25 @@ final class WorkoutSession {
 
 // User-supplied input captured at "tap to complete" time. The view fills
 // in defaults from the prescribed set; the user can override.
-struct SetEntry {
-    var outcome: SetOutcome
-    var actualReps: Int?
-    var actualWeightKg: Double?
-    var actualRpe: Double?
+public struct SetEntry: Sendable {
+    public var outcome: SetOutcome
+    public var actualReps: Int?
+    public var actualWeightKg: Double?
+    public var actualRpe: Double?
 
-    static let skipped = SetEntry(
+    public init(
+        outcome: SetOutcome,
+        actualReps: Int? = nil,
+        actualWeightKg: Double? = nil,
+        actualRpe: Double? = nil
+    ) {
+        self.outcome = outcome
+        self.actualReps = actualReps
+        self.actualWeightKg = actualWeightKg
+        self.actualRpe = actualRpe
+    }
+
+    public static let skipped = SetEntry(
         outcome: .skipped,
         actualReps: nil,
         actualWeightKg: nil,
@@ -696,10 +708,10 @@ struct SetEntry {
     )
 }
 
-enum WeightUnit: String, Codable, Sendable, Hashable, CaseIterable {
+public enum WeightUnit: String, Codable, Sendable, Hashable, CaseIterable {
     case kg, lb
 
-    var displayLabel: String {
+    public var displayLabel: String {
         switch self {
         case .kg: return "kg"
         case .lb: return "lb"

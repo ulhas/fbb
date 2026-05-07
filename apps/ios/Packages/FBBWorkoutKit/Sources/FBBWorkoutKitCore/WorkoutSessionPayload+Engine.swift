@@ -1,10 +1,10 @@
 import Foundation
 
 // Factory for building WorkoutSessionPayload from the in-memory engine
-// session. The base Codable struct lives in FBBWorkoutKitCore so the watch
-// can use it without dragging in the iOS-only WorkoutSession type.
+// session. Lives next to the engine in Core; the base Codable struct is
+// in WorkoutSessionPayload.swift.
 
-extension WorkoutSessionPayload {
+public extension WorkoutSessionPayload {
     /// Build the wire payload from an in-memory session. The session must
     /// have completed its run (`endedAt` set, `phase == .summary`) — we
     /// don't post in-progress sessions.

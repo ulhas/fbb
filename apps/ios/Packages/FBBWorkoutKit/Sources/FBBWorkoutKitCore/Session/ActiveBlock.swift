@@ -5,7 +5,7 @@ import Foundation
 // engine recomputes this on each tick (and on cursor moves) so it never
 // has to be hand-maintained. Codable so persistence can resume the right
 // block on relaunch.
-enum ActiveBlock: Codable, Hashable, Sendable {
+public enum ActiveBlock: Codable, Hashable, Sendable {
     /// User-paced (straight_sets, rounds, free). The footer shows total
     /// elapsed and rest (if any); there is no group countdown.
     case none(GroupId)
@@ -21,7 +21,7 @@ enum ActiveBlock: Codable, Hashable, Sendable {
     /// continuous_effort: open-ended stopwatch.
     case stopwatch(StopwatchState)
 
-    var groupId: GroupId {
+    public var groupId: GroupId {
         switch self {
         case .none(let g): return g
         case .interval(let s): return s.groupId
@@ -35,7 +35,7 @@ enum ActiveBlock: Codable, Hashable, Sendable {
     /// Push every wall-clock anchor inside this block forward by
     /// `seconds`. Used on resume after a pause so the timer thinks no
     /// time passed during the pause window.
-    func shiftedForward(by seconds: TimeInterval) -> ActiveBlock {
+    public func shiftedForward(by seconds: TimeInterval) -> ActiveBlock {
         let bump: (Date) -> Date = { $0.addingTimeInterval(seconds) }
         switch self {
         case .none: return self
@@ -77,77 +77,77 @@ enum ActiveBlock: Codable, Hashable, Sendable {
     }
 }
 
-struct IntervalState: Codable, Hashable, Sendable {
-    let groupId: GroupId
-    let intervalSeconds: Int
-    let totalRounds: Int
-    let startedAt: Date
+public struct IntervalState: Codable, Hashable, Sendable {
+    public let groupId: GroupId
+    public let intervalSeconds: Int
+    public let totalRounds: Int
+    public let startedAt: Date
 
-    func roundIndex(now: Date) -> Int {
+    public func roundIndex(now: Date) -> Int {
         let elapsed = max(0, Int(now.timeIntervalSince(startedAt)))
         return elapsed / max(1, intervalSeconds)
     }
 
-    func roundElapsedSeconds(now: Date) -> Int {
+    public func roundElapsedSeconds(now: Date) -> Int {
         let elapsed = max(0, Int(now.timeIntervalSince(startedAt)))
         return elapsed % max(1, intervalSeconds)
     }
 
-    func roundRemainingSeconds(now: Date) -> Int {
+    public func roundRemainingSeconds(now: Date) -> Int {
         intervalSeconds - roundElapsedSeconds(now: now)
     }
 
-    func isComplete(now: Date) -> Bool {
+    public func isComplete(now: Date) -> Bool {
         roundIndex(now: now) >= totalRounds
     }
 }
 
-struct CapState: Codable, Hashable, Sendable {
-    let groupId: GroupId
-    let capSeconds: Int
-    let startedAt: Date
+public struct CapState: Codable, Hashable, Sendable {
+    public let groupId: GroupId
+    public let capSeconds: Int
+    public let startedAt: Date
     /// User-controlled — incremented when the user taps "+1 round". Lives
     /// here so it persists across tick recomputations.
-    var userRoundsCompleted: Int
-    var userPartialReps: Int
+    public var userRoundsCompleted: Int
+    public var userPartialReps: Int
 
-    func remainingSeconds(now: Date) -> Int {
+    public func remainingSeconds(now: Date) -> Int {
         let elapsed = max(0, Int(now.timeIntervalSince(startedAt)))
         return capSeconds - elapsed
     }
 
-    func elapsedSeconds(now: Date) -> Int {
+    public func elapsedSeconds(now: Date) -> Int {
         max(0, Int(now.timeIntervalSince(startedAt)))
     }
 
-    func isExpired(now: Date) -> Bool {
+    public func isExpired(now: Date) -> Bool {
         remainingSeconds(now: now) <= 0
     }
 }
 
-struct TabataState: Codable, Hashable, Sendable {
-    enum SubPhase: String, Codable, Sendable, Hashable { case work, rest }
+public struct TabataState: Codable, Hashable, Sendable {
+    public enum SubPhase: String, Codable, Sendable, Hashable { case work, rest }
 
-    let groupId: GroupId
-    let startedAt: Date
-    let totalRounds: Int       // typically 8
-    let workSeconds: Int       // typically 20
-    let restSeconds: Int       // typically 10
+    public let groupId: GroupId
+    public let startedAt: Date
+    public let totalRounds: Int       // typically 8
+    public let workSeconds: Int       // typically 20
+    public let restSeconds: Int       // typically 10
 
-    var cycleSeconds: Int { workSeconds + restSeconds }
+    public var cycleSeconds: Int { workSeconds + restSeconds }
 
-    func roundIndex(now: Date) -> Int {
+    public func roundIndex(now: Date) -> Int {
         let elapsed = max(0, Int(now.timeIntervalSince(startedAt)))
         return elapsed / cycleSeconds
     }
 
-    func subPhase(now: Date) -> SubPhase {
+    public func subPhase(now: Date) -> SubPhase {
         let elapsed = max(0, Int(now.timeIntervalSince(startedAt)))
         let inCycle = elapsed % cycleSeconds
         return inCycle < workSeconds ? .work : .rest
     }
 
-    func subPhaseRemainingSeconds(now: Date) -> Int {
+    public func subPhaseRemainingSeconds(now: Date) -> Int {
         let elapsed = max(0, Int(now.timeIntervalSince(startedAt)))
         let inCycle = elapsed % cycleSeconds
         return subPhase(now: now) == .work
@@ -155,26 +155,26 @@ struct TabataState: Codable, Hashable, Sendable {
             : cycleSeconds - inCycle
     }
 
-    func isComplete(now: Date) -> Bool {
+    public func isComplete(now: Date) -> Bool {
         roundIndex(now: now) >= totalRounds
     }
 }
 
-struct PyramidState: Codable, Hashable, Sendable {
-    let groupId: GroupId
-    let steps: [PyramidStep]
-    let startedAt: Date
+public struct PyramidState: Codable, Hashable, Sendable {
+    public let groupId: GroupId
+    public let steps: [PyramidStep]
+    public let startedAt: Date
 
-    func cumulativeStepEnds(at index: Int) -> Int {
+    public func cumulativeStepEnds(at index: Int) -> Int {
         guard index < steps.count else { return totalSeconds }
         return steps.prefix(index + 1).reduce(0) { $0 + $1.durationSeconds }
     }
 
-    var totalSeconds: Int {
+    public var totalSeconds: Int {
         steps.reduce(0) { $0 + $1.durationSeconds }
     }
 
-    func currentStepIndex(now: Date) -> Int {
+    public func currentStepIndex(now: Date) -> Int {
         let elapsed = max(0, Int(now.timeIntervalSince(startedAt)))
         var running = 0
         for (idx, step) in steps.enumerated() {
@@ -184,7 +184,7 @@ struct PyramidState: Codable, Hashable, Sendable {
         return steps.count // past the end
     }
 
-    func stepRemainingSeconds(now: Date) -> Int {
+    public func stepRemainingSeconds(now: Date) -> Int {
         let elapsed = max(0, Int(now.timeIntervalSince(startedAt)))
         let idx = currentStepIndex(now: now)
         guard idx < steps.count else { return 0 }
@@ -193,16 +193,16 @@ struct PyramidState: Codable, Hashable, Sendable {
         return steps[idx].durationSeconds - inStep
     }
 
-    func isComplete(now: Date) -> Bool {
+    public func isComplete(now: Date) -> Bool {
         currentStepIndex(now: now) >= steps.count
     }
 }
 
-struct StopwatchState: Codable, Hashable, Sendable {
-    let groupId: GroupId
-    let startedAt: Date
+public struct StopwatchState: Codable, Hashable, Sendable {
+    public let groupId: GroupId
+    public let startedAt: Date
 
-    func elapsedSeconds(now: Date) -> Int {
+    public func elapsedSeconds(now: Date) -> Int {
         max(0, Int(now.timeIntervalSince(startedAt)))
     }
 }
@@ -211,8 +211,8 @@ struct StopwatchState: Codable, Hashable, Sendable {
 // sits in. Called when the cursor moves into a new group, or on engine
 // start. The reducer takes the immutable plan + a "block start time"
 // anchor (usually `now`) and produces the matching state.
-enum ActiveBlockReducer {
-    static func make(
+public enum ActiveBlockReducer {
+    public static func make(
         for group: ParsedGroup,
         in section: ParsedSection,
         startedAt: Date

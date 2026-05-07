@@ -11,34 +11,34 @@ import Foundation
 // from `WorkoutDetailView`. On launch, if a blob exists and is < 24h
 // old, the Today screen offers a "Resume in-progress workout" banner
 // (banner is a v1.1 follow-up; the engine support lands now).
-struct PersistedSession: Codable {
-    let sessionId: UUID
-    let trackCode: String
-    let weekStartsOn: String
-    let scheduledOn: String
-    let day: ParsedDay
-    let startedAt: Date?
-    let endedAt: Date?
-    let pausedAccumulatedSeconds: TimeInterval
-    let phase: SessionPhase
-    let cursor: Cursor
-    let activeBlock: ActiveBlock?
-    let restAfter: RestState?
-    let setLog: [SetLogEntry]
-    let groupScores: [GroupId: GroupScore]
-    let sectionTransitions: [SectionTransition]
-    let notes: String
-    let weightUnit: WeightUnit
-    let snapshotAt: Date
-    let pendingSync: Bool
+public struct PersistedSession: Codable {
+    public let sessionId: UUID
+    public let trackCode: String
+    public let weekStartsOn: String
+    public let scheduledOn: String
+    public let day: ParsedDay
+    public let startedAt: Date?
+    public let endedAt: Date?
+    public let pausedAccumulatedSeconds: TimeInterval
+    public let phase: SessionPhase
+    public let cursor: Cursor
+    public let activeBlock: ActiveBlock?
+    public let restAfter: RestState?
+    public let setLog: [SetLogEntry]
+    public let groupScores: [GroupId: GroupScore]
+    public let sectionTransitions: [SectionTransition]
+    public let notes: String
+    public let weightUnit: WeightUnit
+    public let snapshotAt: Date
+    public let pendingSync: Bool
 }
 
 @MainActor
-enum SessionPersistence {
+public enum SessionPersistence {
     private static let keyPrefix = "fbb.activeWorkoutSession.v1."
     private static let resumeMaxAge: TimeInterval = 24 * 60 * 60
 
-    static func snapshot(_ session: WorkoutSession, pendingSync: Bool = false) {
+    public static func snapshot(_ session: WorkoutSession, pendingSync: Bool = false) {
         let snap = PersistedSession(
             sessionId: session.sessionId,
             trackCode: session.trackCode,
@@ -69,13 +69,13 @@ enum SessionPersistence {
         }
     }
 
-    static func clear(_ sessionId: UUID) {
+    public static func clear(_ sessionId: UUID) {
         UserDefaults.standard.removeObject(forKey: key(for: sessionId))
     }
 
     /// Find the most recently snapshotted session that hasn't been
     /// cleared and is < 24h old. Used to offer "resume" on app launch.
-    static func loadActive() -> PersistedSession? {
+    public static func loadActive() -> PersistedSession? {
         let defaults = UserDefaults.standard
         var best: PersistedSession?
         for (k, v) in defaults.dictionaryRepresentation() where k.hasPrefix(keyPrefix) {
@@ -97,7 +97,7 @@ enum SessionPersistence {
 
     /// All blobs that the device thinks failed to sync after their
     /// workout ended. Sync layer drains this on `scenePhase == .active`.
-    static func loadPendingSync() -> [PersistedSession] {
+    public static func loadPendingSync() -> [PersistedSession] {
         let defaults = UserDefaults.standard
         var out: [PersistedSession] = []
         for (k, v) in defaults.dictionaryRepresentation() where k.hasPrefix(keyPrefix) {

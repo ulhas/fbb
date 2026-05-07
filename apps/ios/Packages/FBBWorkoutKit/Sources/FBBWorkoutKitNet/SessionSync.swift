@@ -1,4 +1,5 @@
 import Foundation
+import FBBWorkoutKitCore
 
 // Coordinates the post-workout sync. The path of least surprise:
 //   1. User taps Save on the Summary screen.
@@ -12,13 +13,13 @@ import Foundation
 // the server only ever sees a complete, internally-consistent session.
 
 @MainActor
-enum SessionSync {
-    enum SyncResult {
+public enum SessionSync {
+    public enum SyncResult: Sendable {
         case synced
         case keptLocal(APIError)
     }
 
-    static func upload(
+    public static func upload(
         _ session: WorkoutSession,
         api: APIClient
     ) async -> SyncResult {
@@ -42,7 +43,7 @@ enum SessionSync {
     /// `WorkoutDetailView` `.task` and from the app's `scenePhase`
     /// handler. Best-effort and non-blocking — failures keep the blob
     /// for the next attempt.
-    static func drainPending(api: APIClient) async {
+    public static func drainPending(api: APIClient) async {
         let pending = SessionPersistence.loadPendingSync()
         for snap in pending {
             let payload = payload(from: snap)
