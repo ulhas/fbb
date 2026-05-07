@@ -1,6 +1,8 @@
 import SwiftUI
 import WatchKit
 import FBBDesignSystem
+import FBBWorkoutKitCore
+import FBBWorkoutKitNet
 
 struct WatchSummaryView: View {
     @Environment(WatchAppEnvironment.self) private var env
@@ -15,7 +17,22 @@ struct WatchSummaryView: View {
     }
 
     var body: some View {
-        let session = env.session
+        if let session = env.store.activeSession {
+            content(session: session)
+        } else {
+            ContentUnavailableView(
+                "No session",
+                systemImage: "checkmark.seal",
+                description: Text("Nothing to save.")
+            )
+            .onAppear {
+                path = NavigationPath()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func content(session: WorkoutSession) -> some View {
         ScrollView {
             VStack(spacing: Spacing.sm) {
                 Image(systemName: "checkmark.seal.fill")
@@ -27,21 +44,16 @@ struct WatchSummaryView: View {
                     .font(.fbb.watchTitle)
                     .foregroundStyle(Color.inkPrimary)
 
-                statsGrid(
-                    elapsed: session.elapsedSeconds,
-                    volume: session.totalVolumeKg,
-                    sets: session.setLogs.count
-                )
+                statsGrid(session: session)
 
-                weightToggle
+                weightToggle(session: session)
 
                 Button {
-                    save()
+                    save(session: session)
                 } label: {
                     switch saveState {
                     case .saving:
-                        ProgressView()
-                            .tint(.white)
+                        ProgressView().tint(.white)
                     case .saved:
                         Label("Saved", systemImage: "checkmark")
                     default:
@@ -69,16 +81,20 @@ struct WatchSummaryView: View {
     }
 
     @ViewBuilder
-    private func statsGrid(elapsed: Int, volume: Double, sets: Int) -> some View {
+    private func statsGrid(session: WorkoutSession) -> some View {
         let cellHeight: CGFloat = 50
+        let elapsed = session.totalElapsedSeconds()
+        let setCount = session.setLog.count
+        let volumeKg = totalVolumeKg(setLog: session.setLog)
+
         VStack(spacing: Spacing.xxs) {
             HStack(spacing: Spacing.xxs) {
-                statTile(label: "TIME", value: formatElapsed(elapsed), height: cellHeight)
-                statTile(label: "SETS", value: "\(sets)", height: cellHeight)
+                statTile(label: "TIME", value: SessionMath.formatElapsed(elapsed), height: cellHeight)
+                statTile(label: "SETS", value: "\(setCount)", height: cellHeight)
             }
             statTile(
-                label: env.session.weightUnit == .kg ? "VOLUME (KG)" : "VOLUME (LB)",
-                value: formatVolume(volume),
+                label: session.weightUnit == .kg ? "VOLUME (KG)" : "VOLUME (LB)",
+                value: formatVolume(volumeKg, unit: session.weightUnit),
                 height: cellHeight
             )
         }
@@ -99,10 +115,10 @@ struct WatchSummaryView: View {
         .background(Color.surfaceCard, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    private var weightToggle: some View {
+    private func weightToggle(session: WorkoutSession) -> some View {
         HStack(spacing: Spacing.xxs) {
-            unitChip("kg", isSelected: env.session.weightUnit == .kg) { env.session.weightUnit = .kg }
-            unitChip("lb", isSelected: env.session.weightUnit == .lb) { env.session.weightUnit = .lb }
+            unitChip("kg", isSelected: session.weightUnit == .kg) { session.weightUnit = .kg }
+            unitChip("lb", isSelected: session.weightUnit == .lb) { session.weightUnit = .lb }
         }
     }
 
@@ -118,36 +134,36 @@ struct WatchSummaryView: View {
         .buttonStyle(.plain)
     }
 
-    private func save() {
-        guard let payload = env.session.makePayload() else {
-            saveState = .failed("Nothing to save.")
-            return
-        }
+    private func save(session: WorkoutSession) {
         saveState = .saving
         Task {
-            do {
-                _ = try await env.api.postWorkoutSession(payload)
+            let result = await SessionSync.upload(session, api: env.api)
+            switch result {
+            case .synced:
                 saveState = .saved
                 WKInterfaceDevice.current().play(.success)
                 try? await Task.sleep(nanoseconds: 800_000_000)
-                env.session.reset()
-                // Pop back to Home
+                env.store.clear()
                 path = NavigationPath()
-            } catch {
-                saveState = .failed(error.localizedDescription)
+            case .keptLocal(let error):
+                saveState = .failed("Saved locally — will retry. \(error.errorDescription ?? "")")
                 WKInterfaceDevice.current().play(.failure)
             }
         }
     }
 
-    private func formatElapsed(_ seconds: Int) -> String {
-        let m = seconds / 60
-        let s = seconds % 60
-        return String(format: "%d:%02d", m, s)
+    private func totalVolumeKg(setLog: [SetLogEntry]) -> Double {
+        setLog.reduce(0) { acc, log in
+            guard log.outcome == .completed,
+                  let reps = log.actualReps,
+                  let kg = log.actualWeightKg
+            else { return acc }
+            return acc + Double(reps) * kg
+        }
     }
 
-    private func formatVolume(_ kg: Double) -> String {
-        let value = env.session.weightUnit == .kg ? kg : kg * 2.20462
+    private func formatVolume(_ kg: Double, unit: WeightUnit) -> String {
+        let value = unit == .kg ? kg : kg * 2.20462
         if value < 10 { return String(format: "%.1f", value) }
         return "\(Int(value.rounded()))"
     }

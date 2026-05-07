@@ -4,49 +4,59 @@ import FBBDesignSystem
 import FBBWorkoutKitCore
 
 /// Active session screen. Paged TabView with three pages — Set / Rest /
-/// Controls. Rest page is auto-presented when the store reports `isResting`
-/// and auto-pops back to Set when the timer expires.
+/// Controls. Rest page is auto-presented when the engine reports a rest
+/// state and auto-pops back to Set when the rest is dismissed.
 struct WatchWorkoutView: View {
     @Environment(WatchAppEnvironment.self) private var env
     @Binding var path: NavigationPath
     @State private var pageIndex = 0
 
     var body: some View {
-        // Force re-render every tick so timers update.
-        let _ = env.session.tickCounter
+        if let session = env.store.activeSession {
+            // Force re-render every tick so timers update.
+            let _ = session.tickCounter
 
-        TabView(selection: $pageIndex) {
-            WatchSetCard()
-                .tag(0)
+            TabView(selection: $pageIndex) {
+                WatchSetCard(session: session)
+                    .tag(0)
 
-            WatchRestRing()
-                .tag(1)
+                WatchRestRing(session: session)
+                    .tag(1)
 
-            WatchControlsView(
-                onEnd: {
-                    env.session.end()
-                    path.append(WatchRoute.summary)
-                },
-                onAbandon: {
-                    env.session.abandon()
+                WatchControlsView(
+                    session: session,
+                    onEnd: {
+                        env.store.end()
+                        path.append(WatchRoute.summary)
+                    },
+                    onAbandon: { reason in
+                        session.abandonWorkout(reason: reason)
+                        path.append(WatchRoute.summary)
+                    }
+                )
+                .tag(2)
+            }
+            .tabViewStyle(.page)
+            .navigationBarBackButtonHidden(true)
+            .onChange(of: session.restAfter != nil) { _, isResting in
+                withAnimation { pageIndex = isResting ? 1 : 0 }
+            }
+            .onChange(of: session.phase) { _, newPhase in
+                if case .summary = newPhase {
                     path.append(WatchRoute.summary)
                 }
-            )
-            .tag(2)
-        }
-        .tabViewStyle(.page)
-        .navigationBarBackButtonHidden(true)
-        .onChange(of: env.session.isResting) { _, isResting in
-            // Auto-present the rest page when a rest starts; auto-pop back
-            // to Set when it expires.
-            withAnimation { pageIndex = isResting ? 1 : 0 }
-        }
-        .onChange(of: env.session.phase) { _, newPhase in
-            // Auto-route to summary if the engine ended the session
-            // (e.g. last set completed).
-            if case .summary = newPhase {
-                path.append(WatchRoute.summary)
+                if case .abandoned = newPhase {
+                    path.append(WatchRoute.summary)
+                }
             }
+        } else {
+            // No active session — shouldn't happen if Home routed here, but
+            // bail out gracefully.
+            ContentUnavailableView(
+                "No active workout",
+                systemImage: "figure.run",
+                description: Text("Pick a workout from the home screen.")
+            )
         }
     }
 }
@@ -55,27 +65,24 @@ struct WatchWorkoutView: View {
 
 private struct WatchSetCard: View {
     @Environment(WatchAppEnvironment.self) private var env
+    let session: WorkoutSession
 
     @State private var actualReps: Int = 0
     @State private var actualWeightKg: Double = 0
     @State private var focused: Field = .reps
+    @State private var lastSyncedSetId: SetId?
 
     enum Field { case reps, weight }
 
     var body: some View {
-        // Re-render every tick so timers update.
-        let _ = env.session.tickCounter
-
-        let session = env.session
-        let exercise = session.currentExercise
-        let set = session.currentSet
+        let _ = session.tickCounter
 
         VStack(alignment: .leading, spacing: Spacing.xxs) {
-            // 1. Top context bar — section letter + exercise position + per-exercise timer
+            // 1. Top context bar
             topContextBar
 
             // 2. Big exercise name
-            Text(exercise?.movementDisplayName ?? "—")
+            Text(currentExercise?.movementDisplayName ?? "—")
                 .font(.fbb.watchTitle)
                 .foregroundStyle(Color.inkPrimary)
                 .lineLimit(2)
@@ -84,10 +91,10 @@ private struct WatchSetCard: View {
 
             // 3. Set N of M + prescription line
             VStack(alignment: .leading, spacing: 1) {
-                Text("Set \(session.setIdx + 1) of \(session.totalSetsInCurrentExercise)")
+                Text("Set \(setNumber) of \(totalSetsInExercise)")
                     .font(.fbb.label)
                     .foregroundStyle(Color.fbbOrange)
-                Text(prescriptionText(for: set))
+                Text(prescriptionText(for: currentSet))
                     .font(.fbb.caption)
                     .foregroundStyle(Color.inkSecondary)
                     .lineLimit(1)
@@ -119,19 +126,20 @@ private struct WatchSetCard: View {
             // 5. Done
             Button {
                 haptic(.success)
-                env.session.logCurrentSet(
+                let entry = SetEntry(
+                    outcome: .completed,
                     actualReps: actualReps == 0 ? nil : actualReps,
                     actualWeightKg: actualWeightKg == 0 ? nil : actualWeightKg,
                     actualRpe: nil
                 )
-                resyncFromCurrentSet()
+                session.completeSet(entry)
             } label: {
                 Label("Done set", systemImage: "checkmark.circle.fill")
             }
             .buttonStyle(.fbbPrimary)
 
             // 6. Next-up hint
-            if let nextName = session.nextExerciseName {
+            if let nextName = nextExerciseName {
                 Label("Next: \(nextName)", systemImage: "arrow.right")
                     .font(.fbb.label)
                     .foregroundStyle(Color.inkMuted)
@@ -153,18 +161,14 @@ private struct WatchSetCard: View {
             isHapticFeedbackEnabled: true
         )
         .onAppear { resyncFromCurrentSet() }
-        .onChange(of: env.session.setIdx) { _, _ in resyncFromCurrentSet() }
-        .onChange(of: env.session.exerciseIdx) { _, _ in resyncFromCurrentSet() }
-        .onChange(of: env.session.sectionIdx) { _, _ in resyncFromCurrentSet() }
+        .onChange(of: session.cursor.setId) { _, _ in resyncFromCurrentSet() }
     }
 
     // MARK: - Top context bar
 
     private var topContextBar: some View {
-        let s = env.session
-        return HStack(spacing: Spacing.xxs) {
-            // Section letter pill
-            if let section = s.currentSection {
+        HStack(spacing: Spacing.xxs) {
+            if let section = currentSection {
                 Text(section.letter)
                     .font(.fbb.label)
                     .foregroundStyle(.white)
@@ -172,18 +176,16 @@ private struct WatchSetCard: View {
                     .padding(.vertical, 2)
                     .background(Color.fbbOrange, in: Capsule())
             }
-            // Exercise position
-            if let pos = s.exercisePositionInSection {
-                Text("Ex \(pos)/\(s.totalExercisesInSection)")
+            if let pos = exercisePositionInSection {
+                Text("Ex \(pos)/\(totalExercisesInSection)")
                     .font(.fbb.label)
                     .foregroundStyle(Color.inkSecondary)
             }
             Spacer(minLength: 0)
-            // Per-exercise timer
             HStack(spacing: 2) {
                 Image(systemName: "timer")
                     .font(.system(size: 9, weight: .semibold))
-                Text(formatMmSs(s.exerciseElapsedSeconds))
+                Text(SessionMath.formatElapsed(session.totalElapsedSeconds()))
                     .font(.fbb.label)
                     .monospacedDigit()
             }
@@ -191,11 +193,70 @@ private struct WatchSetCard: View {
         }
     }
 
+    // MARK: - Engine derivations
+
+    private var currentSection: ParsedSection? {
+        CursorAdvance.currentSection(session.cursor, in: session.day)
+    }
+
+    private var currentGroup: ParsedGroup? {
+        CursorAdvance.currentGroup(session.cursor, in: session.day)
+    }
+
+    private var currentExercise: ParsedExercise? {
+        CursorAdvance.currentExercise(session.cursor, in: session.day)
+    }
+
+    private var currentSet: ParsedSet? {
+        CursorAdvance.currentSet(session.cursor, in: session.day)
+    }
+
+    /// 1-based ordinal of the current set within the current exercise.
+    private var setNumber: Int {
+        guard let ex = currentExercise else { return 0 }
+        return (ex.sets.firstIndex(where: { $0.position == session.cursor.setPosition }) ?? 0) + 1
+    }
+
+    private var totalSetsInExercise: Int {
+        currentExercise?.sets.count ?? 0
+    }
+
+    private var exercisePositionInSection: Int? {
+        guard let section = currentSection,
+              let ex = currentExercise,
+              let group = currentGroup else { return nil }
+        var pos = 0
+        for g in section.groups {
+            for e in g.exercises {
+                guard !e.sets.isEmpty else { continue }
+                pos += 1
+                if e.position == ex.position && g.position == group.position {
+                    return pos
+                }
+            }
+        }
+        return nil
+    }
+
+    private var totalExercisesInSection: Int {
+        currentSection?.groups.reduce(0) { acc, g in
+            acc + g.exercises.filter { !$0.sets.isEmpty }.count
+        } ?? 0
+    }
+
+    private var nextExerciseName: String? {
+        guard let next = CursorAdvance.next(after: session.cursor, in: session.day),
+              let nextEx = CursorAdvance.currentExercise(next, in: session.day),
+              nextEx.movementDisplayName != currentExercise?.movementDisplayName
+        else { return nil }
+        return nextEx.movementDisplayName
+    }
+
     // MARK: - Helpers
 
     private var weightDisplay: String {
         if actualWeightKg == 0 { return "—" }
-        let value = env.session.weightUnit == .kg
+        let value = session.weightUnit == .kg
             ? actualWeightKg
             : actualWeightKg * 2.20462
         return value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
@@ -226,15 +287,16 @@ private struct WatchSetCard: View {
     private var crownStep: Double {
         switch focused {
         case .reps:   return 1
-        case .weight: return env.session.weightUnit == .kg ? 2.5 : 5
+        case .weight: return session.weightUnit == .kg ? 2.5 : 5
         }
     }
 
     private func resyncFromCurrentSet() {
-        let s = env.session.currentSet
+        let s = currentSet
         actualReps = s?.repsMin ?? s?.repsMax ?? 0
         actualWeightKg = 0
         focused = .reps
+        lastSyncedSetId = session.cursor.setId
     }
 
     private func prescriptionText(for set: ParsedSet?) -> String {
@@ -261,12 +323,6 @@ private struct WatchSetCard: View {
 
     private func formatRpe(_ v: Double) -> String {
         v == v.rounded() ? "\(Int(v))" : String(format: "%.1f", v)
-    }
-
-    private func formatMmSs(_ seconds: Int) -> String {
-        let m = seconds / 60
-        let s = seconds % 60
-        return String(format: "%d:%02d", m, s)
     }
 
     private func haptic(_ kind: WKHapticType) {
@@ -314,21 +370,24 @@ private struct WatchInputCell: View {
 // MARK: - Rest ring
 
 private struct WatchRestRing: View {
-    @Environment(WatchAppEnvironment.self) private var env
+    let session: WorkoutSession
 
     var body: some View {
-        let _ = env.session.tickCounter
-        let remaining = env.session.restRemainingSeconds ?? 0
-        let total = max(env.session.currentSet?.restAfterSecondsMin ?? 60, 1)
-        let progress = min(1.0, Double(remaining) / Double(total))
+        let _ = session.tickCounter
+        let now = Date()
+        let rest = session.restAfter
+        let remaining = rest?.remainingSeconds(now: now) ?? 0
+        let total = max(rest?.plannedSeconds ?? 60, 1)
+        let progress = max(0.0, min(1.0, Double(remaining) / Double(total)))
+        let isOvertime = (rest?.isOvertime(now: now)) ?? false
 
         VStack(spacing: Spacing.xxs) {
             HStack(spacing: 4) {
                 Text("REST")
                     .font(.fbb.label)
                     .foregroundStyle(Color.inkMuted)
-                if let next = env.session.currentExercise?.movementDisplayName {
-                    Text("· next: \(next)")
+                if let nextEx = CursorAdvance.currentExercise(session.cursor, in: session.day) {
+                    Text("· next: \(nextEx.movementDisplayName)")
                         .font(.fbb.label)
                         .foregroundStyle(Color.inkMuted)
                         .lineLimit(1)
@@ -341,31 +400,31 @@ private struct WatchRestRing: View {
                 Circle()
                     .trim(from: 0, to: progress)
                     .stroke(
-                        env.session.isResting ? Color.fbbTeal : Color.fbbStop,
+                        isOvertime ? Color.fbbStop : Color.fbbTeal,
                         style: StrokeStyle(lineWidth: 6, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
-                Text(formatTime(remaining))
+                Text(SessionMath.formatCountdown(remaining))
                     .font(.fbb.watchMetricHero)
-                    .foregroundStyle(Color.inkPrimary)
+                    .foregroundStyle(isOvertime ? Color.fbbStop : Color.inkPrimary)
                     .monospacedDigit()
             }
             .frame(width: 110, height: 110)
             .padding(.vertical, Spacing.xxs)
 
             HStack(spacing: Spacing.xxs) {
-                Button("-15s") { env.session.adjustRest(by: -15); haptic(.click) }
+                Button("-15s") { session.extendRest(by: -15); haptic(.click) }
                     .buttonStyle(.plain)
                     .padding(.vertical, 6)
                     .padding(.horizontal, Spacing.xs)
                     .background(Color.surfaceCard, in: Capsule())
-                Button("Skip") { env.session.skipRest(); haptic(.success) }
+                Button("Skip") { session.dismissRest(); haptic(.success) }
                     .buttonStyle(.plain)
                     .padding(.vertical, 6)
                     .padding(.horizontal, Spacing.sm)
                     .background(Color.fbbTeal, in: Capsule())
                     .foregroundStyle(.white)
-                Button("+15s") { env.session.adjustRest(by: 15); haptic(.click) }
+                Button("+15s") { session.extendRest(by: 15); haptic(.click) }
                     .buttonStyle(.plain)
                     .padding(.vertical, 6)
                     .padding(.horizontal, Spacing.xs)
@@ -374,28 +433,6 @@ private struct WatchRestRing: View {
             .font(.fbb.caption)
         }
         .padding(.horizontal, Spacing.xs)
-        .focusable()
-        .digitalCrownRotation(
-            Binding(
-                get: { Double(env.session.restRemainingSeconds ?? 0) },
-                set: { newValue in
-                    let delta = Int(newValue) - (env.session.restRemainingSeconds ?? 0)
-                    if delta != 0 { env.session.adjustRest(by: delta) }
-                }
-            ),
-            from: 0,
-            through: 600,
-            by: 5,
-            sensitivity: .low,
-            isContinuous: false,
-            isHapticFeedbackEnabled: true
-        )
-    }
-
-    private func formatTime(_ seconds: Int) -> String {
-        let m = seconds / 60
-        let s = seconds % 60
-        return String(format: "%d:%02d", m, s)
     }
 
     private func haptic(_ kind: WKHapticType) {
@@ -406,20 +443,36 @@ private struct WatchRestRing: View {
 // MARK: - Controls page
 
 private struct WatchControlsView: View {
-    @Environment(WatchAppEnvironment.self) private var env
+    let session: WorkoutSession
     let onEnd: () -> Void
-    let onAbandon: () -> Void
+    let onAbandon: (String) -> Void
     @State private var confirmingAbandon = false
 
     var body: some View {
-        let _ = env.session.tickCounter
+        let _ = session.tickCounter
         VStack(spacing: Spacing.xs) {
             Text("ELAPSED")
                 .font(.fbb.label)
                 .foregroundStyle(Color.inkMuted)
-            Text(formatElapsed(env.session.elapsedSeconds))
+            Text(SessionMath.formatElapsed(session.totalElapsedSeconds()))
                 .font(.fbb.metricLarge)
                 .foregroundStyle(Color.inkPrimary)
+
+            Button {
+                if session.isPaused {
+                    session.resumeWorkout()
+                    haptic(.start)
+                } else {
+                    session.pauseWorkout()
+                    haptic(.click)
+                }
+            } label: {
+                Label(
+                    session.isPaused ? "Resume" : "Pause",
+                    systemImage: session.isPaused ? "play.fill" : "pause.fill"
+                )
+            }
+            .buttonStyle(.fbbPrimary)
 
             Button {
                 haptic(.success)
@@ -427,7 +480,7 @@ private struct WatchControlsView: View {
             } label: {
                 Label("Finish", systemImage: "flag.checkered")
             }
-            .buttonStyle(.fbbPrimary)
+            .buttonStyle(.fbbSecondary)
 
             Button {
                 confirmingAbandon = true
@@ -446,18 +499,10 @@ private struct WatchControlsView: View {
         ) {
             Button("Discard", role: .destructive) {
                 haptic(.failure)
-                onAbandon()
+                onAbandon("user-discard")
             }
             Button("Cancel", role: .cancel) {}
         }
-    }
-
-    private func formatElapsed(_ seconds: Int) -> String {
-        let h = seconds / 3600
-        let m = (seconds % 3600) / 60
-        let s = seconds % 60
-        if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
-        return String(format: "%d:%02d", m, s)
     }
 
     private func haptic(_ kind: WKHapticType) {

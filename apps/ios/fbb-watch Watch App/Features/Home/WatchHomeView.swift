@@ -84,7 +84,7 @@ struct WatchHomeView: View {
     private func loadedList(cells: [TrainingWeekDayCellRow], displayedDate: String, isToday: Bool) -> some View {
         List {
             // Resume in-progress card pinned on top when an active session exists.
-            if env.session.hasActiveSession {
+            if env.store.hasRunningSession, let active = env.store.activeSession {
                 Section {
                     Button {
                         path.append(WatchRoute.activeSession)
@@ -97,11 +97,9 @@ struct WatchHomeView: View {
                                 Text("Resume")
                                     .font(.fbb.watchTitle)
                                     .foregroundStyle(Color.inkPrimary)
-                                if let trackCode = env.session.trackCode {
-                                    Text(trackCode.replacingOccurrences(of: "_", with: " ").uppercased())
-                                        .font(.fbb.label)
-                                        .foregroundStyle(Color.inkMuted)
-                                }
+                                Text(active.trackCode.replacingOccurrences(of: "_", with: " ").uppercased())
+                                    .font(.fbb.label)
+                                    .foregroundStyle(Color.inkMuted)
                             }
                             Spacer(minLength: 0)
                             Image(systemName: "chevron.right")
@@ -120,7 +118,14 @@ struct WatchHomeView: View {
             Section {
                 ForEach(cells) { cell in
                     DayCellRow(cell: cell) {
-                        env.session.start(day: cell.day, trackCode: cell.track.trackCode)
+                        let session = WorkoutSession(
+                            day: cell.day,
+                            trackCode: cell.track.trackCode,
+                            weekStartsOn: cell.track.microcycle.startsOn,
+                            scheduledOn: cell.day.scheduledOn
+                        )
+                        env.store.attach(session)
+                        env.store.start()
                         path.append(WatchRoute.activeSession)
                     }
                 }

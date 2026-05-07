@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import FBBWorkoutKitCore
 import FBBWorkoutKitNet
 
 /// Lightweight DI container for the watch app. Holds the long-lived
@@ -9,10 +10,10 @@ import FBBWorkoutKitNet
 @MainActor
 final class WatchAppEnvironment {
     let api: APIClient
-    let session: WatchSessionStore
+    let store: WorkoutStore
 
-    init(api: APIClient? = nil, session: WatchSessionStore? = nil) {
+    init(api: APIClient? = nil, store: WorkoutStore? = nil) {
         self.api = api ?? APIClient()
-        self.session = session ?? WatchSessionStore()
+        self.store = store ?? WorkoutStore()
     }
 }
