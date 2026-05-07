@@ -84,6 +84,17 @@ const POSITION_BY_WEEKDAY: Record<string, number> = {
   Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7,
 };
 
+// JS getUTCDay() → Sun=0..Sat=6. Map to our 1=Mon..7=Sun.
+const POSITION_BY_GETDAY: Record<number, number> = {
+  0: 7, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6,
+};
+
+function isoToPosition(iso: string): number {
+  const [y, m, d] = iso.split('-').map((s) => parseInt(s, 10));
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return POSITION_BY_GETDAY[date.getUTCDay()];
+}
+
 export function segment(fullText: string): SegmenterResult {
   const toc = parseToc(fullText);
   const body = fullText.slice(toc.bodyStartIndex);
@@ -149,7 +160,20 @@ export function segment(fullText: string): SegmenterResult {
 
   for (const b of blocks) {
     const { trackCode, family, cadence } = classifyTrack(b.trackHeading);
-    const position = POSITION_BY_WEEKDAY[b.weekday] ?? 1;
+    // Derive position from the actual ISO date — that's the source of truth
+    // we persist. The weekday string in the heading is a label that occasionally
+    // drifts (PDF typos like "Friday, May 2nd, 2026" when May 2 is a Saturday);
+    // trusting it produces duplicate (microcycle, position) collisions at insert.
+    const position = isoToPosition(b.scheduledOn);
+    const labelPosition = POSITION_BY_WEEKDAY[b.weekday];
+    if (labelPosition != null && labelPosition !== position) {
+      warnings.push({
+        scope: 'day',
+        locator: `${trackCode}/${b.scheduledOn}`,
+        code: 'weekday_label_mismatch',
+        detail: `heading "${b.headerLine}" labels ${b.weekday} (position ${labelPosition}) but ${b.scheduledOn} is position ${position}; using the date.`,
+      });
+    }
 
     // The displayName is the first non-blank line in the chunk's body —
     // typically "Week 1 Day 1 - Persist PUMP LIFT 5x", possibly followed by a
@@ -167,7 +191,7 @@ export function segment(fullText: string): SegmenterResult {
         scope: 'day',
         locator: `${trackCode}/${b.scheduledOn}`,
         code: 'week_day_position_mismatch',
-        detail: `weekday=${b.weekday} → position=${position} but Week-line says day_position=${dayPosition}`,
+        detail: `${b.scheduledOn} is position=${position} but Week-line says day_position=${dayPosition}`,
       });
     }
 
