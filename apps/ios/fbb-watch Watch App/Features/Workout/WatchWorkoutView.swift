@@ -41,6 +41,13 @@ struct WatchWorkoutView: View {
             // to Set when it expires.
             withAnimation { pageIndex = isResting ? 1 : 0 }
         }
+        .onChange(of: env.session.phase) { _, newPhase in
+            // Auto-route to summary if the engine ended the session
+            // (e.g. last set completed).
+            if case .summary = newPhase {
+                path.append(WatchRoute.summary)
+            }
+        }
     }
 }
 
@@ -56,37 +63,40 @@ private struct WatchSetCard: View {
     enum Field { case reps, weight }
 
     var body: some View {
+        // Re-render every tick so timers update.
+        let _ = env.session.tickCounter
+
         let session = env.session
         let exercise = session.currentExercise
         let set = session.currentSet
 
-        VStack(spacing: Spacing.xs) {
-            // Header
-            HStack(spacing: Spacing.xxs) {
-                Text(exercise?.movementDisplayName ?? "—")
-                    .font(.fbb.watchTitle)
-                    .foregroundStyle(Color.inkPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                Spacer(minLength: 0)
-                Text("\(session.setIdx + 1)/\(session.totalSetsInCurrentExercise)")
-                    .font(.fbb.label)
-                    .padding(.horizontal, Spacing.xs)
-                    .padding(.vertical, 2)
-                    .background(Color.surfaceCard, in: Capsule())
-                    .foregroundStyle(Color.inkSecondary)
-            }
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
+            // 1. Top context bar — section letter + exercise position + per-exercise timer
+            topContextBar
 
-            // Prescription
-            Text(prescriptionText(for: set))
-                .font(.fbb.caption)
-                .foregroundStyle(Color.inkSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+            // 2. Big exercise name
+            Text(exercise?.movementDisplayName ?? "—")
+                .font(.fbb.watchTitle)
+                .foregroundStyle(Color.inkPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Input cells
-            HStack(spacing: Spacing.xs) {
+            // 3. Set N of M + prescription line
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Set \(session.setIdx + 1) of \(session.totalSetsInCurrentExercise)")
+                    .font(.fbb.label)
+                    .foregroundStyle(Color.fbbOrange)
+                Text(prescriptionText(for: set))
+                    .font(.fbb.caption)
+                    .foregroundStyle(Color.inkSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 4. Input cells
+            HStack(spacing: Spacing.xxs) {
                 WatchInputCell(
                     label: "REPS",
                     value: "\(actualReps)",
@@ -104,9 +114,9 @@ private struct WatchSetCard: View {
                     haptic(.click)
                 }
             }
-            .frame(maxHeight: .infinity)
+            .frame(height: 60)
 
-            // Done
+            // 5. Done
             Button {
                 haptic(.success)
                 env.session.logCurrentSet(
@@ -116,11 +126,21 @@ private struct WatchSetCard: View {
                 )
                 resyncFromCurrentSet()
             } label: {
-                Label("Done", systemImage: "checkmark.circle.fill")
+                Label("Done set", systemImage: "checkmark.circle.fill")
             }
             .buttonStyle(.fbbPrimary)
+
+            // 6. Next-up hint
+            if let nextName = session.nextExerciseName {
+                Label("Next: \(nextName)", systemImage: "arrow.right")
+                    .font(.fbb.label)
+                    .foregroundStyle(Color.inkMuted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
-        .padding(.horizontal, Spacing.xs)
+        .padding(.horizontal, Spacing.xxs)
         .padding(.vertical, Spacing.xxs)
         .focusable()
         .digitalCrownRotation(
@@ -135,7 +155,43 @@ private struct WatchSetCard: View {
         .onAppear { resyncFromCurrentSet() }
         .onChange(of: env.session.setIdx) { _, _ in resyncFromCurrentSet() }
         .onChange(of: env.session.exerciseIdx) { _, _ in resyncFromCurrentSet() }
+        .onChange(of: env.session.sectionIdx) { _, _ in resyncFromCurrentSet() }
     }
+
+    // MARK: - Top context bar
+
+    private var topContextBar: some View {
+        let s = env.session
+        return HStack(spacing: Spacing.xxs) {
+            // Section letter pill
+            if let section = s.currentSection {
+                Text(section.letter)
+                    .font(.fbb.label)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.fbbOrange, in: Capsule())
+            }
+            // Exercise position
+            if let pos = s.exercisePositionInSection {
+                Text("Ex \(pos)/\(s.totalExercisesInSection)")
+                    .font(.fbb.label)
+                    .foregroundStyle(Color.inkSecondary)
+            }
+            Spacer(minLength: 0)
+            // Per-exercise timer
+            HStack(spacing: 2) {
+                Image(systemName: "timer")
+                    .font(.system(size: 9, weight: .semibold))
+                Text(formatMmSs(s.exerciseElapsedSeconds))
+                    .font(.fbb.label)
+                    .monospacedDigit()
+            }
+            .foregroundStyle(Color.inkMuted)
+        }
+    }
+
+    // MARK: - Helpers
 
     private var weightDisplay: String {
         if actualWeightKg == 0 { return "—" }
@@ -175,8 +231,6 @@ private struct WatchSetCard: View {
     }
 
     private func resyncFromCurrentSet() {
-        // Pre-fill from prescription when we land on a new set, so the no-touch
-        // case is `tap Done` => log prescribed.
         let s = env.session.currentSet
         actualReps = s?.repsMin ?? s?.repsMax ?? 0
         actualWeightKg = 0
@@ -202,11 +256,17 @@ private struct WatchSetCard: View {
                 parts.append("RPE \(formatRpe(rpeMin))")
             }
         }
-        return parts.joined(separator: " · ")
+        return parts.isEmpty ? "—" : parts.joined(separator: " · ")
     }
 
     private func formatRpe(_ v: Double) -> String {
         v == v.rounded() ? "\(Int(v))" : String(format: "%.1f", v)
+    }
+
+    private func formatMmSs(_ seconds: Int) -> String {
+        let m = seconds / 60
+        let s = seconds % 60
+        return String(format: "%d:%02d", m, s)
     }
 
     private func haptic(_ kind: WKHapticType) {
@@ -231,19 +291,19 @@ private struct WatchInputCell: View {
                     .padding(.top, 4)
                     .padding(.leading, 6)
                 Text(value)
-                    .font(.fbb.watchMetricHero)
+                    .font(.fbb.watchMetric)
                     .foregroundStyle(Color.inkPrimary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
             }
-            .frame(maxWidth: .infinity, minHeight: 70, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: Spacing.cardCorner, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.surfaceCard)
                     .overlay(
-                        RoundedRectangle(cornerRadius: Spacing.cardCorner, style: .continuous)
-                            .strokeBorder(isFocused ? Color.fbbOrange : Color.clear, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(isFocused ? Color.fbbOrange : Color.clear, lineWidth: 1.5)
                     )
             )
         }
@@ -263,9 +323,18 @@ private struct WatchRestRing: View {
         let progress = min(1.0, Double(remaining) / Double(total))
 
         VStack(spacing: Spacing.xxs) {
-            Text("REST")
-                .font(.fbb.label)
-                .foregroundStyle(Color.inkMuted)
+            HStack(spacing: 4) {
+                Text("REST")
+                    .font(.fbb.label)
+                    .foregroundStyle(Color.inkMuted)
+                if let next = env.session.currentExercise?.movementDisplayName {
+                    Text("· next: \(next)")
+                        .font(.fbb.label)
+                        .foregroundStyle(Color.inkMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
             ZStack {
                 Circle()
                     .stroke(Color.inkMuted.opacity(0.25), lineWidth: 6)

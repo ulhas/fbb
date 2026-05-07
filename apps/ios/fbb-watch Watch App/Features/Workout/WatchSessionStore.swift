@@ -13,7 +13,7 @@ import FBBWorkoutKitNet
 @Observable
 @MainActor
 final class WatchSessionStore {
-    enum Phase: Sendable {
+    enum Phase: Equatable, Sendable {
         case idle
         case running
         case summary
@@ -30,10 +30,15 @@ final class WatchSessionStore {
     var endedAt: Date?
 
     /// Cursor: indexes into the day's nested arrays.
-    var sectionIdx = 0
-    var groupIdx = 0
-    var exerciseIdx = 0
-    var setIdx = 0
+    private(set) var sectionIdx = 0
+    private(set) var groupIdx = 0
+    private(set) var exerciseIdx = 0
+    private(set) var setIdx = 0
+
+    /// When the user first arrived on the current exercise. Resets every
+    /// time the cursor crosses an exercise boundary, so the Set page can
+    /// display "you've spent 2:34 on this exercise."
+    private(set) var exerciseStartedAt: Date?
 
     var setLogs: [LoggedSet] = []
     var notes: String = ""
@@ -60,15 +65,15 @@ final class WatchSessionStore {
         self.sessionId = UUID()
         self.startedAt = Date()
         self.endedAt = nil
-        self.sectionIdx = 0
-        self.groupIdx = 0
-        self.exerciseIdx = 0
-        self.setIdx = 0
         self.setLogs = []
         self.notes = ""
         self.weightUnit = .kg
         self.restEndsAt = nil
         self.phase = .running
+        // Snap to the first valid (section, group, exercise, set) — protects
+        // against days whose first section/group/exercise has no children.
+        snapToFirstValidSet()
+        exerciseStartedAt = Date()
         startTicker()
     }
 
@@ -161,12 +166,18 @@ final class WatchSessionStore {
 
     // MARK: - Cursor
 
+    /// Walk forward from the current position to the next valid set,
+    /// hopping past empty exercises / groups / sections. Auto-ends when no
+    /// more valid sets remain. Tracks exercise crossings so the per-exercise
+    /// timer can reset.
     func advanceCursor() {
         guard let day else { return }
+        let priorSection = sectionIdx
+        let priorExercise = exerciseIdx
+        let priorGroup = groupIdx
+
         var s = sectionIdx, g = groupIdx, e = exerciseIdx, set = setIdx + 1
 
-        // Walk forward, hopping out of exercises/groups/sections when their
-        // children are exhausted.
         while s < day.sections.count {
             let section = day.sections[s]
             if g >= section.groups.count { g = 0; s += 1; continue }
@@ -175,10 +186,37 @@ final class WatchSessionStore {
             let exercise = group.exercises[e]
             if set >= exercise.sets.count { set = 0; e += 1; continue }
             sectionIdx = s; groupIdx = g; exerciseIdx = e; setIdx = set
+            // Reset exercise timer if we crossed an exercise / group / section boundary.
+            if s != priorSection || g != priorGroup || e != priorExercise {
+                exerciseStartedAt = Date()
+            }
             return
         }
         // No more sets — auto-end.
         end()
+    }
+
+    /// Move cursor to the first non-empty (section, group, exercise, set).
+    /// Called from `start()` so an empty leading section doesn't strand the
+    /// user on a screen with `currentSet == nil`.
+    private func snapToFirstValidSet() {
+        guard let day else { return }
+        for (sIdx, section) in day.sections.enumerated() {
+            for (gIdx, group) in section.groups.enumerated() {
+                for (eIdx, exercise) in group.exercises.enumerated() {
+                    if !exercise.sets.isEmpty {
+                        sectionIdx = sIdx
+                        groupIdx = gIdx
+                        exerciseIdx = eIdx
+                        setIdx = 0
+                        return
+                    }
+                }
+            }
+        }
+        // Day had no sets at all — nothing to do; current* accessors will
+        // return nil and the UI will show its empty state.
+        sectionIdx = 0; groupIdx = 0; exerciseIdx = 0; setIdx = 0
     }
 
     // MARK: - Derived: current set
@@ -219,10 +257,66 @@ final class WatchSessionStore {
         currentExercise?.sets.count ?? 0
     }
 
+    /// 1-based exercise number across the whole section (groups flattened),
+    /// for the "Ex 2 of 4" indicator. Counts only exercises that have at
+    /// least one set, so empty placeholders don't pollute the position.
+    var exercisePositionInSection: Int? {
+        guard let section = currentSection,
+              let currentEx = currentExercise else { return nil }
+        var pos = 0
+        for group in section.groups {
+            for exercise in group.exercises {
+                guard !exercise.sets.isEmpty else { continue }
+                pos += 1
+                if exercise.position == currentEx.position
+                   && group.position == (currentGroup?.position ?? -1) {
+                    return pos
+                }
+            }
+        }
+        return nil
+    }
+
+    var totalExercisesInSection: Int {
+        currentSection?.groups.reduce(0) { acc, group in
+            acc + group.exercises.filter { !$0.sets.isEmpty }.count
+        } ?? 0
+    }
+
+    /// Peek at the next exercise the cursor will land on (different name
+    /// from current). Returns nil at the end of the day.
+    var nextExerciseName: String? {
+        guard let day else { return nil }
+        var s = sectionIdx, g = groupIdx, e = exerciseIdx
+        let currentName = currentExercise?.movementDisplayName
+
+        // Walk exercise by exercise.
+        while s < day.sections.count {
+            let section = day.sections[s]
+            if g >= section.groups.count { g = 0; s += 1; continue }
+            let group = section.groups[g]
+            if e + 1 >= group.exercises.count { e = 0; g += 1; continue }
+            e += 1
+            let exercise = group.exercises[e]
+            if exercise.sets.isEmpty { continue }
+            if exercise.movementDisplayName != currentName {
+                return exercise.movementDisplayName
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Timers
+
     var elapsedSeconds: Int {
         guard let start = startedAt else { return 0 }
         let stop = endedAt ?? Date()
         return Int(stop.timeIntervalSince(start))
+    }
+
+    var exerciseElapsedSeconds: Int {
+        guard let start = exerciseStartedAt else { return 0 }
+        return max(0, Int(Date().timeIntervalSince(start)))
     }
 
     var totalVolumeKg: Double {

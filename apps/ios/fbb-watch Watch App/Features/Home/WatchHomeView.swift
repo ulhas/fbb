@@ -33,26 +33,31 @@ struct WatchHomeView: View {
                 .progressViewStyle(.circular)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-        case .empty:
-            emptyState
+        case .empty(let reason):
+            emptyState(reason: reason, vm: vm)
 
         case .failed(let message):
             failedState(message: message, vm: vm)
 
-        case .loaded(let cells):
-            loadedList(cells: cells)
+        case .loaded(let cells, let displayedDate, let isToday):
+            loadedList(cells: cells, displayedDate: displayedDate, isToday: isToday)
         }
     }
 
-    private var emptyState: some View {
+    private func emptyState(reason: String, vm: WatchHomeViewModel) -> some View {
         VStack(spacing: Spacing.xs) {
             Image(systemName: "figure.run")
                 .font(.system(size: 36, weight: .semibold))
                 .foregroundStyle(Color.inkMuted)
-            Text("No workout today")
+            Text(reason)
                 .font(.fbb.body)
                 .foregroundStyle(Color.inkSecondary)
                 .multilineTextAlignment(.center)
+            Button("Retry") {
+                Task { await vm.load(force: true) }
+            }
+            .buttonStyle(.bordered)
+            .tint(.fbbOrange)
         }
         .padding()
     }
@@ -76,7 +81,7 @@ struct WatchHomeView: View {
     }
 
     @ViewBuilder
-    private func loadedList(cells: [TrainingWeekDayCellRow]) -> some View {
+    private func loadedList(cells: [TrainingWeekDayCellRow], displayedDate: String, isToday: Bool) -> some View {
         List {
             // Resume in-progress card pinned on top when an active session exists.
             if env.session.hasActiveSession {
@@ -120,7 +125,7 @@ struct WatchHomeView: View {
                     }
                 }
             } header: {
-                Text("Today")
+                Text(isToday ? "Today" : ISO8601.prettyDate(displayedDate))
                     .font(.fbb.label)
                     .foregroundStyle(Color.inkMuted)
             }
