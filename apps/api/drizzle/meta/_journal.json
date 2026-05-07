@@ -29,6 +29,13 @@
       "when": 1778084931883,
       "tag": "0003_sparkling_dreadnoughts",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778089927427,
+      "tag": "0004_lyrical_titanium_man",
+      "breakpoints": true
     }
   ]
 }

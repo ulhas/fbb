@@ -9,27 +9,28 @@ struct TrackWorkoutCard: View {
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                header
+        // Plain view — no Button wrapper. The call site wraps this in a
+        // NavigationLink and applies PressedScaleButtonStyle there. A
+        // nested Button would intercept the tap and the link wouldn't
+        // route.
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            header
 
-                if cell.day.kind == .rest {
-                    restBody
-                } else {
-                    workoutBody
-                }
+            if cell.day.kind == .rest {
+                restBody
+            } else {
+                workoutBody
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Spacing.md)
-            .background(cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: Spacing.cardCorner, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Spacing.cardCorner)
-                    .strokeBorder(borderTint.opacity(0.18), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.07), radius: 10, x: 0, y: 4)
         }
-        .buttonStyle(PressedScaleButtonStyle())
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Spacing.md)
+        .background(cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: Spacing.cardCorner, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Spacing.cardCorner)
+                .strokeBorder(borderTint.opacity(0.18), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.07), radius: 10, x: 0, y: 4)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(a11yLabel)
         .accessibilityHint("Opens today's workout for \(cell.track.displayName)")

@@ -8,15 +8,18 @@ import Observation
 final class AppEnvironment {
     let api: APIClient
     let userStore: UserStore
+    let workoutStore: WorkoutStore
     let clock: any DateProvider
 
     init(
         api: APIClient = APIClient(),
         userStore: UserStore? = nil,
+        workoutStore: WorkoutStore? = nil,
         clock: any DateProvider = SystemDateProvider()
     ) {
         self.api = api
         self.userStore = userStore ?? UserStore(api: api)
+        self.workoutStore = workoutStore ?? WorkoutStore()
         self.clock = clock
     }
 }

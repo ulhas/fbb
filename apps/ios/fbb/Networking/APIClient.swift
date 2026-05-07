@@ -7,6 +7,7 @@ import Foundation
 actor APIClient {
     private let session: URLSession
     private let decoder: JSONDecoder
+    private let encoder: JSONEncoder
 
     private var weekList: [TrainingWeekSummaryRow]?
     private var weekIndex: [String: TrainingWeekDetailRow] = [:]
@@ -18,7 +19,12 @@ actor APIClient {
         self.session = session
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
         self.decoder = decoder
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        encoder.dateEncodingStrategy = .iso8601
+        self.encoder = encoder
     }
 
     // MARK: - Training-week reads (stale-while-revalidate via `forceRefresh`)
@@ -74,6 +80,39 @@ actor APIClient {
         invalidateUserCache()
     }
 
+    // MARK: - Workout sessions
+
+    /// Idempotent on the payload's `clientSessionId` — the server uses
+    /// that as its upsert key, so a retry from a flaky network produces
+    /// no duplicates.
+    @discardableResult
+    func postWorkoutSession(
+        _ payload: WorkoutSessionPayload
+    ) async throws -> WorkoutSessionPayload {
+        let body: Data
+        do {
+            body = try encoder.encode(payload)
+        } catch {
+            throw APIError.unknown("Encoding workout session: \(error)")
+        }
+        let (data, http) = try await perform(
+            .postWorkoutSession,
+            method: "POST",
+            body: body
+        )
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.http(
+                status: http.statusCode,
+                body: String(data: data, encoding: .utf8)
+            )
+        }
+        do {
+            return try decoder.decode(WorkoutSessionPayload.self, from: data)
+        } catch {
+            throw APIError.decoding("\(error)")
+        }
+    }
+
     /// Drops every cached value. Pull-to-refresh delegates to per-key
     /// `forceRefresh: true` instead, but this is here for logout / account switch.
     func clearCache() {
@@ -111,13 +150,21 @@ actor APIClient {
         }
     }
 
-    private func perform(_ endpoint: Endpoint, method: String) async throws -> (Data, HTTPURLResponse) {
+    private func perform(
+        _ endpoint: Endpoint,
+        method: String,
+        body: Data? = nil
+    ) async throws -> (Data, HTTPURLResponse) {
         var request = URLRequest(url: APIConfig.baseURL.appendingPathComponent(endpoint.path))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(APIConfig.deviceUserId, forHTTPHeaderField: "X-User-Id")
         if let token = APIConfig.bearerToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
 
         let data: Data

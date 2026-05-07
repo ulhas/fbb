@@ -317,6 +317,6 @@ final class HomeViewModel {
 
 enum NavRoute: Hashable {
     case week(String)
-    case day(week: String, day: String)
+    case workout(trackCode: String, week: String, day: String)
     case profile
 }

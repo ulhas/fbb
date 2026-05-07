@@ -28,3 +28,7 @@ export * from './coaching-notes';
 export * from './mobility-flows';
 
 export * from './upload-jobs';
+
+export * from './workout-sessions';
+export * from './workout-set-logs';
+export * from './workout-group-scores';

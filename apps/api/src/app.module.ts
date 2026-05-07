@@ -8,6 +8,7 @@ import { DatabaseService } from './database/database.service';
 import { LoggerModule } from './logger/logger.module';
 import { TrainingWeeksModule } from './training-weeks/training-weeks.module';
 import { UsersModule } from './users/users.module';
+import { WorkoutsModule } from './workouts/workouts.module';
 import configuration from './config/configuration';
 
 @Module({
@@ -20,6 +21,7 @@ import configuration from './config/configuration';
     DatabaseModule,
     TrainingWeeksModule,
     UsersModule,
+    WorkoutsModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],

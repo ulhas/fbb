@@ -10,6 +10,10 @@ enum Endpoint {
     case followTrack(code: String)
     case unfollowTrack(code: String)
 
+    case postWorkoutSession
+    case listWorkoutSessions
+    case workoutSessionDetail(id: String)
+
     var path: String {
         switch self {
         case .listWeeks:
@@ -24,6 +28,10 @@ enum Endpoint {
             return "/me/tracks"
         case .followTrack(let code), .unfollowTrack(let code):
             return "/me/tracks/\(code)/follow"
+        case .postWorkoutSession, .listWorkoutSessions:
+            return "/workouts/sessions"
+        case .workoutSessionDetail(let id):
+            return "/workouts/sessions/\(id)"
         }
     }
 }

@@ -103,10 +103,14 @@ struct HomeView: View {
                 VStack(spacing: Spacing.sm) {
                     ForEach(vm.followedDayCells) { cell in
                         if let week = vm.viewedWeek.value, let date = vm.selectedDate {
-                            NavigationLink(value: NavRoute.day(week: week.weekStartsOn, day: date)) {
+                            NavigationLink(value: NavRoute.workout(
+                                trackCode: cell.track.trackCode,
+                                week: week.weekStartsOn,
+                                day: date
+                            )) {
                                 TrackWorkoutCard(cell: cell, onTap: {})
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(PressedScaleButtonStyle())
                         }
                     }
                 }

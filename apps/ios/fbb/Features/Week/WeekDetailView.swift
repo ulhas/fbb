@@ -90,7 +90,11 @@ private struct TrackBlock: View {
 
             VStack(spacing: Spacing.xs) {
                 ForEach(track.days) { day in
-                    NavigationLink(value: NavRoute.day(week: weekStartsOn, day: day.scheduledOn)) {
+                    NavigationLink(value: NavRoute.workout(
+                        trackCode: track.trackCode,
+                        week: weekStartsOn,
+                        day: day.scheduledOn
+                    )) {
                         DayMetaRow(day: day)
                     }
                     .buttonStyle(.plain)
