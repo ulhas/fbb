@@ -152,7 +152,6 @@ export const parsedGroupSchema = z
   })
   .superRefine((g, ctx) => {
     const requireInterval = ['every_x_minutes', 'emom', 'e2mom', 'e3mom'];
-    const requireCap = ['for_time', 'amrap'];
     if (
       requireInterval.includes(g.prescription_mode) &&
       g.interval_seconds == null
@@ -163,10 +162,25 @@ export const parsedGroupSchema = z
         path: ['interval_seconds'],
       });
     }
-    if (requireCap.includes(g.prescription_mode) && g.cap_seconds == null) {
+    // AMRAP needs a cap (it's literally a time-boxed effort). `for_time`
+    // is bounded by either a cap OR a fixed round count — many real-world
+    // for-time prescriptions are open-ended ("complete 2 rounds, no cap")
+    // and the engine has a default fallback when both are absent.
+    if (g.prescription_mode === 'amrap' && g.cap_seconds == null) {
       ctx.addIssue({
         code: 'custom',
-        message: `prescription_mode=${g.prescription_mode} requires cap_seconds`,
+        message: 'prescription_mode=amrap requires cap_seconds',
+        path: ['cap_seconds'],
+      });
+    }
+    if (
+      g.prescription_mode === 'for_time' &&
+      g.cap_seconds == null &&
+      g.round_count_min == null
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'prescription_mode=for_time requires cap_seconds or a round count',
         path: ['cap_seconds'],
       });
     }
