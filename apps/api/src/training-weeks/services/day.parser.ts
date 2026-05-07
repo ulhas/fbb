@@ -234,11 +234,26 @@ export class DayParser {
         errCtx.causeName = err.cause instanceof Error ? err.cause.name : null;
         errCtx.causeMessage =
           err.cause instanceof Error ? err.cause.message : String(err.cause ?? '');
+        // Walk the cause chain looking for Zod issues. AI_TypeValidationError
+        // wraps the underlying ZodError; surfacing its `issues[]` is the only
+        // way to know *which* field rejected without re-running the call.
+        const issues = extractZodIssues(err.cause);
+        if (issues.length > 0) {
+          errCtx.zodIssues = issues
+            .slice(0, 10)
+            .map((i) => ({
+              path: i.path.join('.'),
+              code: i.code,
+              message: i.message,
+            }));
+        }
         warnings.push({
           scope: 'day',
           locator,
           code: 'no_object_generated',
-          detail: err.message,
+          detail: issues.length > 0
+            ? `${err.message} | first issue: ${issues[0].path.join('.')} — ${issues[0].message}`
+            : err.message,
         });
       } else {
         errCtx.code = 'llm_error';
@@ -306,4 +321,42 @@ export class DayParser {
   private cmsSourceId(sourceFilename: string, chunk: DayChunk): string {
     return `persist-pdf:${sourceFilename}#${chunk.trackCode}/${chunk.scheduledOn}`;
   }
+}
+
+interface ZodLikeIssue {
+  path: Array<string | number>;
+  code: string;
+  message: string;
+}
+
+/**
+ * Walk an unknown error cause chain looking for Zod-style `.issues[]`. The AI
+ * SDK wraps Zod validation errors in `AI_TypeValidationError`, so the
+ * `ZodError` is two layers deep at minimum. Extracts a flat list of issues
+ * with `path`, `code`, and `message` for structured logging.
+ */
+function extractZodIssues(cause: unknown, depth = 0): ZodLikeIssue[] {
+  if (depth > 5 || cause == null || typeof cause !== 'object') return [];
+  const obj = cause as { issues?: unknown; cause?: unknown; errors?: unknown };
+  if (Array.isArray(obj.issues)) {
+    return obj.issues
+      .filter((i): i is ZodLikeIssue =>
+        i != null && typeof i === 'object' &&
+        Array.isArray((i as { path?: unknown }).path) &&
+        typeof (i as { message?: unknown }).message === 'string',
+      )
+      .map((i) => ({
+        path: i.path,
+        code: typeof i.code === 'string' ? i.code : 'unknown',
+        message: i.message,
+      }));
+  }
+  if (obj.cause) return extractZodIssues(obj.cause, depth + 1);
+  if (Array.isArray(obj.errors)) {
+    for (const e of obj.errors) {
+      const found = extractZodIssues(e, depth + 1);
+      if (found.length > 0) return found;
+    }
+  }
+  return [];
 }
