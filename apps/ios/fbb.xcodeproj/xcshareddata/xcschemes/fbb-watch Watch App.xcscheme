@@ -15,7 +15,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "485A0CB62FAC5E9200AA8130"
+               BlueprintIdentifier = "485A0CE52FAC624700AA8130"
                BuildableName = "fbb-watch Watch App.app"
                BlueprintName = "fbb-watch Watch App"
                ReferencedContainer = "container:fbb.xcodeproj">
@@ -49,7 +49,7 @@
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "485A0CC22FAC5E9300AA8130"
+               BlueprintIdentifier = "485A0CF12FAC624700AA8130"
                BuildableName = "fbb-watch Watch AppTests.xctest"
                BlueprintName = "fbb-watch Watch AppTests"
                ReferencedContainer = "container:fbb.xcodeproj">
@@ -60,7 +60,7 @@
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "485A0CCC2FAC5E9300AA8130"
+               BlueprintIdentifier = "485A0CFB2FAC624700AA8130"
                BuildableName = "fbb-watch Watch AppUITests.xctest"
                BlueprintName = "fbb-watch Watch AppUITests"
                ReferencedContainer = "container:fbb.xcodeproj">
@@ -83,7 +83,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "485A0CB62FAC5E9200AA8130"
+            BlueprintIdentifier = "485A0CE52FAC624700AA8130"
             BuildableName = "fbb-watch Watch App.app"
             BlueprintName = "fbb-watch Watch App"
             ReferencedContainer = "container:fbb.xcodeproj">
@@ -100,21 +100,12 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "485A0CB62FAC5E9200AA8130"
+            BlueprintIdentifier = "485A0CE52FAC624700AA8130"
             BuildableName = "fbb-watch Watch App.app"
             BlueprintName = "fbb-watch Watch App"
             ReferencedContainer = "container:fbb.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <MacroExpansion>
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "485A0CB62FAC5E9200AA8130"
-            BuildableName = "fbb-watch Watch App.app"
-            BlueprintName = "fbb-watch Watch App"
-            ReferencedContainer = "container:fbb.xcodeproj">
-         </BuildableReference>
-      </MacroExpansion>
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">

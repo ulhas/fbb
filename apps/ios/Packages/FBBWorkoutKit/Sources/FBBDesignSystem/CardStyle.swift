@@ -1,9 +1,13 @@
 import SwiftUI
 
-struct CardStyle: ViewModifier {
-    var padded: Bool = true
+public struct CardStyle: ViewModifier {
+    public var padded: Bool
 
-    func body(content: Content) -> some View {
+    public init(padded: Bool = true) {
+        self.padded = padded
+    }
+
+    public func body(content: Content) -> some View {
         content
             .padding(padded ? Spacing.md : 0)
             .background(Color.surfaceCard)
@@ -12,7 +16,7 @@ struct CardStyle: ViewModifier {
     }
 }
 
-extension View {
+public extension View {
     func cardStyle(padded: Bool = true) -> some View {
         modifier(CardStyle(padded: padded))
     }
