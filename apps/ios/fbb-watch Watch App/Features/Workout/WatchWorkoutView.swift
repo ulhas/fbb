@@ -417,22 +417,24 @@ private struct WatchRestRing: View {
             HStack(spacing: Spacing.xxs) {
                 Button("-15s") { session.extendRest(by: -15); haptic(.click) }
                     .buttonStyle(.plain)
+                    .foregroundStyle(Color.inkPrimary)
                     .padding(.vertical, 6)
                     .padding(.horizontal, Spacing.xs)
                     .background(Color.surfaceCard, in: Capsule())
                 Button("Skip") { session.dismissRest(); haptic(.success) }
                     .buttonStyle(.plain)
+                    .foregroundStyle(.white)
                     .padding(.vertical, 6)
                     .padding(.horizontal, Spacing.sm)
                     .background(Color.fbbTeal, in: Capsule())
-                    .foregroundStyle(.white)
                 Button("+15s") { session.extendRest(by: 15); haptic(.click) }
                     .buttonStyle(.plain)
+                    .foregroundStyle(Color.inkPrimary)
                     .padding(.vertical, 6)
                     .padding(.horizontal, Spacing.xs)
                     .background(Color.surfaceCard, in: Capsule())
             }
-            .font(.fbb.caption)
+            .font(.fbb.caption.bold())
         }
         .padding(.horizontal, Spacing.xs)
     }

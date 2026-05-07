@@ -31,5 +31,9 @@ private struct RootViewWithRoutes: View {
                 }
         }
         .tint(.fbbOrange)
+        // watchOS UI is always dark — pin the colorScheme so SPM-bundled
+        // asset-catalog colors resolve to their dark-luminosity variant
+        // instead of falling back to the universal/light value.
+        .preferredColorScheme(.dark)
     }
 }
