@@ -17,7 +17,7 @@ struct WatchWorkoutView: View {
             let _ = session.tickCounter
 
             TabView(selection: $pageIndex) {
-                WatchSetCard(session: session)
+                WatchModeRouter(session: session)
                     .tag(0)
 
                 WatchRestRing(session: session)
@@ -61,9 +61,11 @@ struct WatchWorkoutView: View {
     }
 }
 
-// MARK: - Set page (the hero)
+// MARK: - Set page (the hero) — used by WatchModeRouter for the
+// straight_sets / .none active block. Not private so the router can pick
+// it up from the same module.
 
-private struct WatchSetCard: View {
+struct WatchSetCard: View {
     @Environment(WatchAppEnvironment.self) private var env
     let session: WorkoutSession
 
