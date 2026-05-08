@@ -137,10 +137,18 @@ export function resolveModel(input: ResolveModelInput): ResolvedModel {
       throw new Error('ANTHROPIC_API_KEY is not configured');
     }
     const anthropic = createAnthropic({ apiKey: input.anthropicApiKey });
+    // Force the JSON-output-format path over jsonTool. Anthropic's tool-call
+    // mode caps at 16 union-typed parameters, and our day schema has ~50
+    // nullable fields — it crashes with "Schemas contains too many parameters
+    // with union types" on `auto`. `outputFormat` mode tells the model to
+    // emit JSON in the text response; AI SDK then validates with our Zod
+    // schema. Same end result, no provider-side schema-shape limit.
     return {
       model: anthropic(spec.model),
       catalog,
-      providerOptions: {},
+      providerOptions: {
+        anthropic: { structuredOutputMode: 'outputFormat' },
+      },
       applyTemperatureZero: catalog.supports_temperature,
     };
   }
