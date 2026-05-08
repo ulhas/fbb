@@ -368,3 +368,16 @@ export interface UploadJobDetail {
   parse_metrics: ParseMetrics | null;
   dry_run_only: boolean;
 }
+
+// One row per registered user, surfaced to the admin console at GET /users.
+// `active_follow_count` is the number of currently-followed tracks (rows in
+// user_track_follows with `unfollowed_at IS NULL`); historical follows are
+// reachable via /me/tracks/history but excluded here.
+export interface AdminUserRow {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+  active_follow_count: number;
+  created_at: string;
+  updated_at: string;
+}

@@ -5,6 +5,7 @@ import {
   Controller,
   GoneException,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   NotFoundException,
@@ -13,13 +14,14 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UnsupportedMediaTypeException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 
 import { AdminGuard } from '../training-weeks/admin.guard';
@@ -174,6 +176,32 @@ export class UploadJobsController {
     });
 
     return { job_id: jobId, status: 'queued' };
+  }
+
+  // Streams the original PDF back to the admin UI for in-page preview. Inline
+  // disposition with the upload's filename so the browser tab title and any
+  // download falls back to something recognisable. 404 if the file is no
+  // longer on disk (common after a `re-upload required` retry).
+  @Get(':id/pdf')
+  @Header('Content-Type', 'application/pdf')
+  async pdf(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const job = await this.jobs.get(id);
+    if (!job) {
+      throw new NotFoundException(`upload job ${id} not found`);
+    }
+    const buffer = await this.jobs.loadPdf(id);
+    if (!buffer) {
+      throw new NotFoundException(
+        `pdf for upload job ${id} is no longer on disk; re-upload required`,
+      );
+    }
+    const safeName = job.filename.replace(/"/g, '');
+    res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(buffer);
   }
 
   // Long-poll: holds the connection until the job hits a terminal status or

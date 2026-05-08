@@ -15,6 +15,10 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* Strictness — TanStack Router requires strictNullChecks. Pull in the
+       full strict bundle so we don't quietly regress. */
+    "strict": true,
+
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,

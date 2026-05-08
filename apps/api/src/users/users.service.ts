@@ -34,6 +34,15 @@ export interface FollowEventRow {
   is_active: boolean;
 }
 
+export interface AdminUserRow {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+  active_follow_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 @Injectable()
 export class UsersService {
   constructor(private readonly database: DatabaseService) {}
@@ -166,6 +175,37 @@ export class UsersService {
           isNull(userTrackFollows.unfollowedAt),
         ),
       );
+  }
+
+  /// Admin list: every user with their currently-active follow count. Newest
+  /// users first so freshly registered accounts surface at the top of the
+  /// admin table. Active-only count keeps it aligned with what the user sees
+  /// in their picker; historical follows live in `getFollowHistory`.
+  async listAll(limit = 200): Promise<AdminUserRow[]> {
+    const activeFollowCount = sql<number>`coalesce(count(${userTrackFollows.userId}) filter (where ${userTrackFollows.unfollowedAt} is null), 0)::int`;
+    const rows = await this.database.db
+      .select({
+        id: users.id,
+        email: users.email,
+        displayName: users.displayName,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+        activeFollowCount,
+      })
+      .from(users)
+      .leftJoin(userTrackFollows, eq(userTrackFollows.userId, users.id))
+      .groupBy(users.id)
+      .orderBy(desc(users.createdAt))
+      .limit(limit);
+
+    return rows.map((r) => ({
+      id: r.id,
+      email: r.email,
+      display_name: r.displayName,
+      active_follow_count: r.activeFollowCount,
+      created_at: r.createdAt.toISOString(),
+      updated_at: r.updatedAt.toISOString(),
+    }));
   }
 
   /// Full audit: every (re-)follow this user has ever made, newest first.

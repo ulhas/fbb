@@ -8,11 +8,39 @@
 // round-trips. The poll loop keeps reopening until the signal aborts.
 
 import type {
+  UploadJobDetail,
   UploadJobStatus,
+  UploadJobSummary,
   UploadResponse,
 } from '@fbb/types'
 
-export type { UploadJobStatus, UploadResponse }
+export type { UploadJobDetail, UploadJobStatus, UploadJobSummary, UploadResponse }
+
+export async function listUploadJobs(
+  signal?: AbortSignal,
+): Promise<UploadJobSummary[]> {
+  const res = await fetch('/api/v1/upload-jobs', { signal })
+  if (!res.ok) throw await readUploadError(res)
+  return (await res.json()) as UploadJobSummary[]
+}
+
+export async function fetchUploadJob(
+  id: string,
+  signal?: AbortSignal,
+): Promise<UploadJobDetail> {
+  const res = await fetch(`/api/v1/upload-jobs/${encodeURIComponent(id)}`, {
+    signal,
+  })
+  if (!res.ok) throw await readUploadError(res)
+  return (await res.json()) as UploadJobDetail
+}
+
+// Returns the URL the browser fetches the PDF from. Kept as a function (not a
+// constant) so callers can use it directly as an <iframe src> or hand it to
+// react-pdf without needing to know the encoding rules.
+export function uploadJobPdfUrl(id: string): string {
+  return `/api/v1/upload-jobs/${encodeURIComponent(id)}/pdf`
+}
 
 export interface UploadOptions {
   file: File

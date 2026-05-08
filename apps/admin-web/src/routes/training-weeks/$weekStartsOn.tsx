@@ -1,19 +1,23 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import {
+  Link,
+  createFileRoute,
+  useNavigate,
+} from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 
 import {
   pollUploadJobUntilDone,
   retryUploadJobDays,
-} from '../api/upload-jobs'
-import { Badge } from '../components/ui/Badge'
-import { Card } from '../components/ui/Card'
+} from '../../api/upload-jobs'
+import { Badge } from '../../components/ui/Badge'
+import { Card } from '../../components/ui/Card'
 import {
   trainingWeeksKeys,
   useTrainingWeek,
   useTrainingWeekDay,
   useTrainingWeeks,
-} from '../hooks/useTrainingWeeks'
+} from '../../hooks/useTrainingWeeks'
 import type {
   ParsedDay,
   ParsedExercise,
@@ -24,7 +28,7 @@ import type {
   TrainingWeekDayCell,
   TrainingWeekDayMeta,
   TrainingWeekTrackIndex,
-} from '../types'
+} from '@fbb/types'
 
 // Sun-indexed so Date.getDay() maps directly. Using scheduled_on as the source
 // of truth (rather than ParsedDay.position) means weekday labels stay correct
@@ -47,15 +51,32 @@ const CADENCE_ORDER = ['3x', '4x', '5x', 'custom', '__none__'] as const
 
 type View = 'matrix' | 'day' | 'track'
 
-function asView(v: string | null): View {
+interface WeekSearch {
+  view?: View
+  family?: TrackFamily
+  cadence?: string
+  track?: string
+  day?: string
+}
+
+export const Route = createFileRoute('/training-weeks/$weekStartsOn')({
+  component: TrainingWeekDetailPage,
+  validateSearch: (raw): WeekSearch => {
+    const out: WeekSearch = {}
+    const view = raw.view
+    if (view === 'matrix' || view === 'day' || view === 'track') out.view = view
+    if (typeof raw.family === 'string') out.family = raw.family as TrackFamily
+    if (typeof raw.cadence === 'string') out.cadence = raw.cadence
+    if (typeof raw.track === 'string') out.track = raw.track
+    if (typeof raw.day === 'string') out.day = raw.day
+    return out
+  },
+})
+
+function asView(v: View | undefined): View {
   return v === 'matrix' || v === 'day' ? v : 'track'
 }
 
-// All date helpers anchor on UTC so an ISO date like 2026-04-20 always renders
-// as April 20 regardless of the viewer's timezone. Parsing without a `Z`
-// suffix and then calling `.toISOString()` rolls the date forward/back by a
-// day for any non-UTC locale — that bug surfaced as "Sunday always empty" in
-// the matrix view.
 function weekdayLabel(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`)
   return WEEKDAY_LABEL[d.getUTCDay()]
@@ -72,22 +93,21 @@ function formatDate(iso: string): string {
   })
 }
 
-export function TrainingWeekDetailPage() {
-  const { weekStartsOn } = useParams<{ weekStartsOn: string }>()
+function TrainingWeekDetailPage() {
+  const { weekStartsOn } = Route.useParams()
+  const search = Route.useSearch()
+  const navigate = useNavigate({ from: Route.fullPath })
+
   const { record, loading, error } = useTrainingWeek(weekStartsOn)
-  const [searchParams, setSearchParams] = useSearchParams()
 
-  const view = asView(searchParams.get('view'))
-  const familyParam = searchParams.get('family') as TrackFamily | null
-  const cadenceParam = searchParams.get('cadence')
-  const trackParam = searchParams.get('track')
-  const dayParam = searchParams.get('day')
+  const view = asView(search.view)
+  const familyParam = search.family ?? null
+  const cadenceParam = search.cadence ?? null
+  const trackParam = search.track ?? null
+  const dayParam = search.day ?? null
 
-  // List of all weeks — drives prev/next navigation. Already cached if the
-  // user came from the list page; otherwise this triggers a small extra fetch.
   const { records: weekList } = useTrainingWeeks()
 
-  // `prev` is the *older* week, `next` is the *newer* week (chronological).
   const weekNav = useMemo(() => {
     if (!weekStartsOn || weekList.length === 0)
       return { prev: null as string | null, next: null as string | null }
@@ -101,10 +121,6 @@ export function TrainingWeekDetailPage() {
     }
   }, [weekList, weekStartsOn])
 
-  // Selections cascade family → cadence → track. Each level reads from the URL
-  // first; if the URL value is missing/stale (e.g. user picked a new family),
-  // we fall back to the first available option without writing the URL — that
-  // keeps the back button useful and URLs minimal.
   const families = useMemo<TrackFamily[]>(() => {
     if (!record) return []
     const seen = new Set<TrackFamily>()
@@ -145,10 +161,6 @@ export function TrainingWeekDetailPage() {
     )
   }, [record, effectiveFamily, effectiveCadence])
 
-  // Day view uses a softer filter: it respects URL family/cadence when
-  // present but never auto-defaults. No URL filter = show every track for
-  // the selected day. This lets users land in day view (or carry a `family`
-  // selection over from track view) and see *all* matching tracks at once.
   const dayViewTracks = useMemo(() => {
     if (!record) return []
     let arr = record.tracks
@@ -166,13 +178,23 @@ export function TrainingWeekDetailPage() {
     filteredTracks[0] ??
     null
 
-  const updateParams = (next: Record<string, string | null>) => {
-    const params = new URLSearchParams(searchParams)
-    for (const [k, v] of Object.entries(next)) {
-      if (v == null) params.delete(k)
-      else params.set(k, v)
-    }
-    setSearchParams(params, { replace: true })
+  // search-param updater. Spreads the existing search and overlays the patch
+  // so callers can pass `{ day: null }` to clear a single key without
+  // re-stating the rest. Replace mode keeps the back stack reasonable.
+  const updateSearch = (patch: Partial<Record<keyof WeekSearch, string | null>>) => {
+    void navigate({
+      search: (prev: WeekSearch) => {
+        const next: WeekSearch = { ...prev }
+        for (const [k, v] of Object.entries(patch) as Array<
+          [keyof WeekSearch, string | null | undefined]
+        >) {
+          if (v == null) delete next[k]
+          else (next[k] as string) = v
+        }
+        return next
+      },
+      replace: true,
+    })
   }
 
   if (loading) {
@@ -209,11 +231,7 @@ export function TrainingWeekDetailPage() {
       <div className="mb-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="flex items-end gap-3">
-            <WeekNavLink
-              iso={weekNav.prev}
-              direction="prev"
-              searchParams={searchParams}
-            />
+            <WeekNavLink iso={weekNav.prev} direction="prev" search={search} />
             <div>
               <h1 className="text-[28px] font-bold leading-tight text-ink">
                 Week of {formatDate(record.week_starts_on)}
@@ -222,11 +240,7 @@ export function TrainingWeekDetailPage() {
                 {record.week_starts_on} → {record.week_ends_on}
               </p>
             </div>
-            <WeekNavLink
-              iso={weekNav.next}
-              direction="next"
-              searchParams={searchParams}
-            />
+            <WeekNavLink iso={weekNav.next} direction="next" search={search} />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="info">🏋️ {tracks.length} tracks</Badge>
@@ -243,20 +257,14 @@ export function TrainingWeekDetailPage() {
             <ViewToggle
               view={view}
               onChange={(v) => {
-                // Track view's filter cascade writes `cadence` and `track`
-                // to the URL as the user narrows down. Day and Matrix views
-                // are multi-track by nature, so carrying those through would
-                // silently shrink the visible set to whatever was last
-                // selected. Drop them on the way out; keep `family` (a
-                // useful scope) and `day` (the calendar day in focus).
-                const next: Record<string, string | null> = {
+                const next: Partial<Record<keyof WeekSearch, string | null>> = {
                   view: v === 'track' ? null : v,
                 }
                 if (v !== 'track') {
                   next.cadence = null
                   next.track = null
                 }
-                updateParams(next)
+                updateSearch(next)
               }}
             />
           </div>
@@ -281,19 +289,19 @@ export function TrainingWeekDetailPage() {
               activeTrackCode={effectiveTrack?.track_code ?? null}
               showTrackPicker
               onSelectFamily={(f) =>
-                updateParams({ family: f, cadence: null, track: null })
+                updateSearch({ family: f, cadence: null, track: null })
               }
               onSelectCadence={(c) =>
-                updateParams({ cadence: c, track: null })
+                updateSearch({ cadence: c, track: null })
               }
-              onSelectTrack={(code) => updateParams({ track: code })}
+              onSelectTrack={(code) => updateSearch({ track: code })}
             />
           ) : null}
           {view === 'track' && effectiveTrack ? (
             <TrackPanel
               track={effectiveTrack}
               selectedDay={dayParam}
-              onSelectDay={(iso) => updateParams({ day: iso })}
+              onSelectDay={(iso) => updateSearch({ day: iso })}
               weekStartsOn={record.week_starts_on}
               lastUploadJobId={record.last_upload_job_id}
             />
@@ -303,7 +311,7 @@ export function TrainingWeekDetailPage() {
               weekStartsOn={record.week_starts_on}
               tracks={tracks}
               onPickCell={(track, iso) =>
-                updateParams({
+                updateSearch({
                   view: null,
                   family: track.family,
                   cadence: track.cadence ?? '__none__',
@@ -318,7 +326,7 @@ export function TrainingWeekDetailPage() {
               tracks={dayViewTracks}
               weekStartsOn={record.week_starts_on}
               selectedDay={dayParam}
-              onSelectDay={(iso) => updateParams({ day: iso })}
+              onSelectDay={(iso) => updateSearch({ day: iso })}
               lastUploadJobId={record.last_upload_job_id}
             />
           ) : null}
@@ -485,7 +493,6 @@ function DayView({
   onSelectDay: (iso: string) => void
   lastUploadJobId: string | null
 }) {
-  // Calendar dates Mon..Sun for the week, UTC-anchored to match MatrixView.
   const weekDates = useMemo(() => {
     const out: string[] = []
     const base = new Date(`${weekStartsOn}T00:00:00Z`)
@@ -500,16 +507,11 @@ function DayView({
   const activeIso =
     selectedDay && weekDates.includes(selectedDay) ? selectedDay : weekDates[0]
 
-  // Heavy lift: full sections/groups/exercises/sets for every track on the
-  // active date. RQ caches per (week, day) so toggling Track ↔ Day on the
-  // same day reuses the same payload.
   const { record: dayDetail, loading: dayLoading } = useTrainingWeekDay(
     weekStartsOn,
     activeIso,
   )
 
-  // Filter the day-detail cells to the tracks visible under the current
-  // family/cadence URL filter. Ordering follows `tracks` (the index order).
   const visibleCells = useMemo(() => {
     if (!dayDetail) return []
     const cellByTrack = new Map(
@@ -520,8 +522,6 @@ function DayView({
       .filter((c): c is TrainingWeekDayCell => c !== undefined)
   }, [dayDetail, tracks])
 
-  // Strip indicators come from the slim index — no need to wait on the
-  // heavy day-detail fetch to render the pill counts.
   const countsByDate = useMemo(() => {
     const map = new Map<
       string,
@@ -635,9 +635,6 @@ function DayCalendarPill({
   active: boolean
   onClick: () => void
 }) {
-  // Indicators are stacked in priority order: workouts dominate, then
-  // recovery, then lesson. Rest/mobility is implicit (it's "tracks not
-  // training").
   const indicators: string[] = []
   if (counts.workout > 0) indicators.push(`🏋️ ${counts.workout}`)
   if (counts.recovery > 0) indicators.push(`🤸 ${counts.recovery}`)
@@ -750,9 +747,6 @@ function TrackPanel({
   weekStartsOn: string
   lastUploadJobId: string | null
 }) {
-  // The selected day is anchored on calendar date, not track position, so it
-  // survives switching tracks (you stay on the same day-of-week). Falls back
-  // to the first workout, otherwise the first day in the track.
   const activeIso = useMemo(() => {
     if (selectedDay && track.days.some((d) => d.scheduled_on === selectedDay))
       return selectedDay
@@ -763,9 +757,6 @@ function TrackPanel({
     )
   }, [track, selectedDay])
 
-  // Day-detail returns every track's full content for the active calendar
-  // day; we filter to this track's cell. RQ caches per (week, day), so the
-  // payload is shared with Day view when the user toggles between them.
   const { record: dayDetail, loading: dayLoading } = useTrainingWeekDay(
     weekStartsOn,
     activeIso,
@@ -875,9 +866,6 @@ function DayPanel({
   const { sectionCount, exerciseCount } = countDay(day)
   const tone = kindToneOf(day.kind)
   const cleanName = day.display_name.replace(/^Week \d+ Day \d+ - /, '')
-  // Show the reparse affordance only when a programming day came back empty.
-  // Lesson/rest/mobility days legitimately have no exercises; surfacing a
-  // retry button there would invite no-op re-runs.
   const looksUnderparsed =
     (day.kind === 'workout' || day.kind === 'active_recovery') &&
     exerciseCount === 0
@@ -1006,16 +994,12 @@ function UnderparsedDayCallout({
 function WeekNavLink({
   iso,
   direction,
-  searchParams,
+  search,
 }: {
   iso: string | null
   direction: 'prev' | 'next'
-  searchParams: URLSearchParams
+  search: WeekSearch
 }) {
-  // When jumping to a sibling week, we keep view + family/cadence (user prefs)
-  // but drop `day` and `track` — the previous week's calendar dates and track
-  // codes don't necessarily exist in the next one, and the page's fallbacks
-  // re-derive sensible defaults.
   const arrow = direction === 'prev' ? '←' : '→'
   if (!iso) {
     return (
@@ -1028,13 +1012,13 @@ function WeekNavLink({
       </span>
     )
   }
-  const next = new URLSearchParams(searchParams)
-  next.delete('day')
-  next.delete('track')
-  const qs = next.toString()
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { day: _d, track: _t, ...carriedSearch } = search
   return (
     <Link
-      to={`/training-weeks/${iso}${qs ? `?${qs}` : ''}`}
+      to="/training-weeks/$weekStartsOn"
+      params={{ weekStartsOn: iso }}
+      search={carriedSearch}
       replace
       aria-label={direction === 'prev' ? 'Previous week' : 'Next week'}
       className="grid h-9 w-9 cursor-pointer place-items-center rounded-full border border-divider bg-card text-ink-muted transition-colors hover:border-fbb-orange/60 hover:text-fbb-orange-dark"
@@ -1250,9 +1234,6 @@ function monthDayShort(iso: string): string {
   })
 }
 
-// snake_case → Title Case. Backend enums (kind, prescription_mode, set_kind,
-// microcycle.kind, etc.) ship as snake_case; we humanize at the render boundary
-// rather than maintaining a parallel display map for every enum variant.
 function humanize(s: string | null | undefined): string {
   if (!s) return ''
   return s

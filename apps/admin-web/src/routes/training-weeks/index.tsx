@@ -1,23 +1,23 @@
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 
-import { deleteTrainingWeek } from '../api/training-weeks'
-import { TrainingWeeksTable } from '../components/TrainingWeeksTable'
-import { UploadDialog } from '../components/UploadDialog'
-import { Button } from '../components/ui/Button'
-import { EmptyState } from '../components/ui/EmptyState'
+import { deleteTrainingWeek } from '../../api/training-weeks'
+import { TrainingWeeksTable } from '../../components/TrainingWeeksTable'
+import { UploadDialog } from '../../components/UploadDialog'
+import { Button } from '../../components/ui/Button'
+import { EmptyState } from '../../components/ui/EmptyState'
 import {
   trainingWeeksKeys,
   useTrainingWeeks,
-} from '../hooks/useTrainingWeeks'
+} from '../../hooks/useTrainingWeeks'
 import type { TrainingWeekSummary } from '@fbb/types'
 
-// /training-weeks list page: signal over decoration. Operations stripe at the
-// top is the actionable summary (coverage, issues, recency); the table is
-// the per-row view. Per-row delete is delegated to a confirm modal owned at
-// page scope so the table cell stays a thin trigger.
-export function TrainingWeeksListPage() {
+export const Route = createFileRoute('/training-weeks/')({
+  component: TrainingWeeksListPage,
+})
+
+function TrainingWeeksListPage() {
   const { records, loading, error, refresh } = useTrainingWeeks()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -116,7 +116,12 @@ export function TrainingWeeksListPage() {
         onClose={() => setUploadOpen(false)}
         onUploaded={(weekStartsOn) => {
           refresh()
-          if (weekStartsOn) navigate(`/training-weeks/${weekStartsOn}`)
+          if (weekStartsOn) {
+            void navigate({
+              to: '/training-weeks/$weekStartsOn',
+              params: { weekStartsOn },
+            })
+          }
         }}
       />
 

@@ -6,7 +6,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from '@tanstack/react-router'
 
 import type { TrainingWeekSummary, UnderparsedDayRef } from '@fbb/types'
 
@@ -216,12 +216,18 @@ export function TrainingWeeksTable({
               tabIndex={0}
               role="link"
               onClick={() =>
-                navigate(`/training-weeks/${row.original.week_starts_on}`)
+                navigate({
+                  to: '/training-weeks/$weekStartsOn',
+                  params: { weekStartsOn: row.original.week_starts_on },
+                })
               }
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  navigate(`/training-weeks/${row.original.week_starts_on}`)
+                  navigate({
+                    to: '/training-weeks/$weekStartsOn',
+                    params: { weekStartsOn: row.original.week_starts_on },
+                  })
                 }
               }}
               className={`cursor-pointer transition-colors hover:bg-fbb-orange-tint/40 focus-visible:bg-fbb-orange-tint/60 focus-visible:outline-none ${
@@ -327,9 +333,11 @@ function UnderparsedPopover({
                   onClick={(e) => {
                     e.stopPropagation()
                     setOpen(false)
-                    navigate(
-                      `/training-weeks/${weekStartsOn}?day=${scheduled}`,
-                    )
+                    navigate({
+                      to: '/training-weeks/$weekStartsOn',
+                      params: { weekStartsOn },
+                      search: { day: scheduled },
+                    })
                   }}
                   className="flex w-full cursor-pointer items-start justify-between gap-3 rounded-md px-2 py-1.5 text-left hover:bg-fbb-orange-tint/40"
                 >
@@ -352,7 +360,10 @@ function UnderparsedPopover({
               onClick={(e) => {
                 e.stopPropagation()
                 setOpen(false)
-                navigate(`/training-weeks/${weekStartsOn}`)
+                navigate({
+                  to: '/training-weeks/$weekStartsOn',
+                  params: { weekStartsOn },
+                })
               }}
               className="cursor-pointer text-[12px] font-semibold text-fbb-orange hover:text-fbb-orange-dark"
             >
