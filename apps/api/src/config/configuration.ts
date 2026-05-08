@@ -35,5 +35,15 @@ export default () => ({
     // days without making the client re-upload. Defaults to a sibling of the
     // process cwd; override per-environment if `pnpm dev` runs from elsewhere.
     uploadsDir: process.env.UPLOADS_DIR ?? 'data/uploads',
+    // Default ModelSpec used when the upload form doesn't pin a specific
+    // provider/model. PARSE_DEFAULT_* takes precedence; if those are unset
+    // we fall back to the legacy OPENAI_PARSE_MODEL / OPENAI_REASONING_EFFORT
+    // env vars (so a redeploy doesn't change behaviour) and finally to the
+    // hardcoded DEFAULT_MODEL_SPEC.
+    defaultProvider: process.env.PARSE_DEFAULT_PROVIDER,
+    defaultModel: process.env.PARSE_DEFAULT_MODEL ?? process.env.OPENAI_PARSE_MODEL,
+    defaultReasoningEffort:
+      process.env.PARSE_DEFAULT_REASONING_EFFORT ??
+      process.env.OPENAI_REASONING_EFFORT,
   },
 });

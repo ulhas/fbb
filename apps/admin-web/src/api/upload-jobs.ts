@@ -25,20 +25,27 @@ export type {
 
 // Mirrors ModelCatalogEntry from the api. Picker UI keys off
 // supports_reasoning_effort to decide whether to show the effort dropdown.
+// `is_default` is the catalog entry that matches the env-driven default
+// ModelSpec — pickers should pre-select it.
 export interface ModelCatalogEntry {
   spec: ModelSpec
   display_name: string
   supports_reasoning_effort: boolean
   supports_temperature: boolean
+  is_default: boolean
+}
+
+export interface ModelCatalogResponse {
+  models: ModelCatalogEntry[]
+  default_spec: ModelSpec
 }
 
 export async function listModelCatalog(
   signal?: AbortSignal,
-): Promise<ModelCatalogEntry[]> {
+): Promise<ModelCatalogResponse> {
   const res = await fetch('/api/v1/upload-jobs/models', { signal })
   if (!res.ok) throw await readUploadError(res)
-  const body = (await res.json()) as { models: ModelCatalogEntry[] }
-  return body.models
+  return (await res.json()) as ModelCatalogResponse
 }
 
 export async function reparseUploadJobAs(
@@ -86,6 +93,11 @@ export function uploadJobPdfUrl(id: string): string {
 export interface UploadOptions {
   file: File
   dryRun?: boolean
+  // Optional model selection. When omitted the api falls back to the
+  // env-driven default ModelSpec (PARSE_DEFAULT_PROVIDER /
+  // PARSE_DEFAULT_MODEL / PARSE_DEFAULT_REASONING_EFFORT, with legacy
+  // OPENAI_* fallback).
+  modelSpec?: ModelSpec
   signal?: AbortSignal
   // Optional progress hook fired on each poll cycle. Useful for showing
   // "still working…" hints; the UI is free to ignore it.
@@ -131,6 +143,16 @@ async function postUpload(opts: UploadOptions): Promise<UploadAcceptedResponse> 
   const form = new FormData()
   form.append('file', opts.file)
   if (opts.dryRun) form.append('dry_run', 'true')
+  // Optional model fields. Sending all three together keeps the api's
+  // partial-submission validation happy; omitting them entirely makes the
+  // api fall back to its env default.
+  if (opts.modelSpec) {
+    form.append('model_provider', opts.modelSpec.provider)
+    form.append('model_id', opts.modelSpec.model)
+    if (opts.modelSpec.reasoning_effort) {
+      form.append('reasoning_effort', opts.modelSpec.reasoning_effort)
+    }
+  }
 
   const res = await fetch('/api/v1/upload-jobs', {
     method: 'POST',

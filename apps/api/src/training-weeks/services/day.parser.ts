@@ -130,18 +130,24 @@ export class DayParser {
     };
   }
 
-  // Reads the legacy openai.* config (parseModel + reasoningEffort) so the
-  // existing happy path (POST /upload-jobs without a model spec) still picks
-  // up env-driven overrides. New callers (POST /upload-jobs/:id/reparse-as)
-  // pass an explicit ModelSpec instead.
+  // Resolves the env-driven default ModelSpec used when the upload form
+  // doesn't pin a specific provider/model. Reads `parser.default*` (set
+  // from PARSE_DEFAULT_PROVIDER / PARSE_DEFAULT_MODEL /
+  // PARSE_DEFAULT_REASONING_EFFORT) and falls back to the hardcoded
+  // DEFAULT_MODEL_SPEC. The legacy OPENAI_PARSE_MODEL /
+  // OPENAI_REASONING_EFFORT env vars feed `parser.defaultModel` /
+  // `parser.defaultReasoningEffort` via configuration.ts, so existing
+  // deployments keep working without re-setting envs.
   defaultModelSpec(): ModelSpec {
-    const model = this.configService.get<string>('openai.parseModel');
+    const provider = this.configService.get<string>('parser.defaultProvider');
+    const model = this.configService.get<string>('parser.defaultModel');
     const reasoningEffort = this.configService.get<string>(
-      'openai.reasoningEffort',
+      'parser.defaultReasoningEffort',
     );
     if (!model) return DEFAULT_MODEL_SPEC;
     return {
-      provider: 'openai',
+      provider:
+        (provider as ModelSpec['provider']) ?? DEFAULT_MODEL_SPEC.provider,
       model,
       reasoning_effort:
         (reasoningEffort as ModelSpec['reasoning_effort']) ?? null,

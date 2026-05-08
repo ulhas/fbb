@@ -27,6 +27,7 @@ import { randomUUID } from 'node:crypto';
 import { AdminGuard } from '../training-weeks/admin.guard';
 import type { UploadResponseDto } from '../training-weeks/dto/parse-result.dto';
 import type { UploadJobStatus } from '../database/schema/upload-jobs';
+import { DayParser } from '../training-weeks/services/day.parser';
 import {
   MODEL_CATALOG,
   type ModelCatalogEntry,
@@ -71,6 +72,7 @@ export class UploadJobsController {
   constructor(
     private readonly service: TrainingWeeksService,
     private readonly jobs: UploadJobsService,
+    private readonly dayParser: DayParser,
   ) {}
 
   @Get()
@@ -79,10 +81,22 @@ export class UploadJobsController {
   }
 
   // Catalog of provider+model combinations the parser can route to. Powers
-  // the admin "Reparse with…" picker. Static (in-process) — no IO.
+  // the admin "Reparse with…" picker and the upload dialog's model selector.
+  // Marks the entry that matches the env-driven default ModelSpec so the
+  // pickers can pre-select it. Static (in-process) — no IO.
   @Get('models')
-  models(): { models: ModelCatalogEntry[] } {
-    return { models: MODEL_CATALOG };
+  models(): {
+    models: Array<ModelCatalogEntry & { is_default: boolean }>;
+    default_spec: ModelSpec;
+  } {
+    const defaultSpec = this.dayParser.defaultModelSpec();
+    const models = MODEL_CATALOG.map((entry) => ({
+      ...entry,
+      is_default:
+        entry.spec.provider === defaultSpec.provider &&
+        entry.spec.model === defaultSpec.model,
+    }));
+    return { models, default_spec: defaultSpec };
   }
 
   // Spawns a NEW upload job from this job's stored PDF using a different
@@ -203,6 +217,9 @@ export class UploadJobsController {
   async create(
     @UploadedFile() file: Express.Multer.File,
     @Body('dry_run') dryRunRaw: string | undefined,
+    @Body('model_provider') modelProviderRaw: string | undefined,
+    @Body('model_id') modelIdRaw: string | undefined,
+    @Body('reasoning_effort') reasoningEffortRaw: string | undefined,
     @Req() req: Request,
   ): Promise<UploadAcceptedDto> {
     if (!file) {
@@ -218,11 +235,51 @@ export class UploadJobsController {
     const dryRun = dryRunRaw === 'true' || dryRunRaw === '1';
     const requestId = req.requestId ?? randomUUID();
 
+    // Optional model selection. When all three fields are absent, the
+    // service falls back to `dayParser.defaultModelSpec()` (env-driven).
+    // Partial submission requires both provider + model — otherwise we
+    // don't know what the user actually wanted.
+    let modelSpec: ModelSpec | undefined;
+    if (modelProviderRaw || modelIdRaw) {
+      if (!modelProviderRaw || !modelIdRaw) {
+        throw new BadRequestException(
+          'model_provider and model_id must be supplied together',
+        );
+      }
+      if (
+        modelProviderRaw !== 'openai' &&
+        modelProviderRaw !== 'anthropic' &&
+        modelProviderRaw !== 'moonshot'
+      ) {
+        throw new BadRequestException(
+          `unknown model_provider: ${modelProviderRaw}; expected one of openai|anthropic|moonshot`,
+        );
+      }
+      const effort = reasoningEffortRaw?.trim();
+      if (
+        effort &&
+        effort !== 'minimal' &&
+        effort !== 'low' &&
+        effort !== 'medium' &&
+        effort !== 'high'
+      ) {
+        throw new BadRequestException(
+          `invalid reasoning_effort: ${effort}; expected minimal|low|medium|high`,
+        );
+      }
+      modelSpec = {
+        provider: modelProviderRaw,
+        model: modelIdRaw,
+        reasoning_effort: (effort as ModelSpec['reasoning_effort']) ?? null,
+      };
+    }
+
     const { jobId } = await this.service.enqueue({
       filename: file.originalname,
       buffer: file.buffer,
       dryRun,
       requestId,
+      modelSpec,
     });
 
     return { job_id: jobId, status: 'queued' };

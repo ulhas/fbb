@@ -118,10 +118,10 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
     },
   },
   {
-    // Kimi K2.6 (kimi-k2-thinking-turbo) — Moonshot's reasoning model.
+    // Kimi K2.6 (model id `kimi-k2.6`) — Moonshot's latest reasoning model.
     // OpenAI-compatible endpoint, structured outputs supported.
-    spec: { provider: 'moonshot', model: 'kimi-k2-thinking-turbo', reasoning_effort: null },
-    display_name: 'Kimi K2.6 (thinking-turbo)',
+    spec: { provider: 'moonshot', model: 'kimi-k2.6', reasoning_effort: null },
+    display_name: 'Kimi K2.6',
     supports_reasoning_effort: false,
     supports_temperature: true,
     pricing: {

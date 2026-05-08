@@ -8,6 +8,7 @@ import {
   type UploadJobStatus,
   type UploadOptions,
 } from '../api/upload-jobs'
+import type { ModelSpec } from '@fbb/types'
 
 function errorMessage(err: unknown): string {
   if (err instanceof UploadError) return `${err.status}: ${err.message}`
@@ -15,6 +16,7 @@ function errorMessage(err: unknown): string {
   return 'unknown error'
 }
 import { trainingWeeksKeys } from '../hooks/useTrainingWeeks'
+import { ModelPicker } from './ModelPicker'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 
@@ -61,16 +63,21 @@ export function UploadDialog({
   const [oversizeError, setOversizeError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [dryRun, setDryRun] = useState(false)
+  // Selected model. ModelPicker resolves the env-default catalog entry on
+  // mount and pushes it up via onChange — start at null so the user can see
+  // the default appear once the catalog loads.
+  const [modelSpec, setModelSpec] = useState<ModelSpec | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  const mutation = useMutation<UploadResult, unknown, { file: File; dryRun: boolean }>({
-    mutationFn: async ({ file, dryRun: dr }) => {
+  const mutation = useMutation<UploadResult, unknown, { file: File; dryRun: boolean; modelSpec: ModelSpec | null }>({
+    mutationFn: async ({ file, dryRun: dr, modelSpec: spec }) => {
       const ctl = new AbortController()
       abortRef.current = ctl
       const opts: UploadOptions = {
         file,
         dryRun: dr,
+        modelSpec: spec ?? undefined,
         signal: ctl.signal,
         onStatus: (jobStatus) => {
           setInFlight((prev) => (prev ? { ...prev, jobStatus } : prev))
@@ -112,6 +119,7 @@ export function UploadDialog({
       setInFlight(null)
       setOversizeError(null)
       setDryRun(false)
+      setModelSpec(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -137,9 +145,9 @@ export function UploadDialog({
         dryRun,
         jobStatus: 'queued',
       })
-      mutation.mutate({ file, dryRun })
+      mutation.mutate({ file, dryRun, modelSpec })
     },
-    [dryRun, mutation],
+    [dryRun, modelSpec, mutation],
   )
 
   const onFileSelected = (e: ChangeEvent<HTMLInputElement>) => {
@@ -230,6 +238,10 @@ export function UploadDialog({
                   className="hidden"
                   onChange={onFileSelected}
                 />
+              </div>
+
+              <div className="mt-4 rounded-[var(--radius-card)] border border-divider bg-surface p-3">
+                <ModelPicker value={modelSpec} onChange={setModelSpec} />
               </div>
 
               <label className="mt-4 flex cursor-pointer items-start gap-2 text-sm text-ink-secondary">

@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 
 import {
-  listModelCatalog,
   reparseUploadJobAs,
   uploadJobPdfUrl,
-  type ModelCatalogEntry,
 } from '../api/upload-jobs'
+import { ModelPicker } from '../components/ModelPicker'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { uploadJobsKeys, useUploadJob } from '../hooks/useUploadJobs'
@@ -18,7 +17,6 @@ import type {
   ModelSpec,
   ParseMetrics,
   ParseWarning,
-  ReasoningEffort,
   UploadJobStatus,
 } from '@fbb/types'
 
@@ -152,47 +150,19 @@ function ReparseModal({
 }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const catalogQuery = useQuery({
-    queryKey: ['upload-jobs', 'models'],
-    queryFn: ({ signal }) => listModelCatalog(signal),
-  })
-
-  // Pre-select the most recently used spec when possible, otherwise the
-  // first catalog entry. Effort defaults to whatever the picked entry has on
-  // its catalog default.
-  const initialKey = (entry: ModelCatalogEntry) =>
-    `${entry.spec.provider}/${entry.spec.model}`
-  const [selectedKey, setSelectedKey] = useState<string | null>(
-    currentSpec ? `${currentSpec.provider}/${currentSpec.model}` : null,
-  )
-  const [effort, setEffort] = useState<ReasoningEffort | null>(
-    currentSpec?.reasoning_effort ?? null,
-  )
-
-  const catalog = catalogQuery.data ?? []
-  const selected =
-    catalog.find((e) => initialKey(e) === selectedKey) ?? catalog[0] ?? null
+  // Seed with the source job's spec so the picker opens on the same model
+  // the user just inspected; ModelPicker will reset to env-default if the
+  // catalog doesn't recognise it.
+  const [spec, setSpec] = useState<ModelSpec | null>(currentSpec)
 
   const mutation = useMutation({
-    mutationFn: (spec: ModelSpec) => reparseUploadJobAs(sourceJobId, spec),
+    mutationFn: (s: ModelSpec) => reparseUploadJobAs(sourceJobId, s),
     onSuccess: ({ job_id }) => {
       void queryClient.invalidateQueries({ queryKey: uploadJobsKeys.list() })
       onClose()
       void navigate({ to: '/upload-jobs/$id', params: { id: job_id } })
     },
   })
-
-  const submit = () => {
-    if (!selected) return
-    const spec: ModelSpec = {
-      provider: selected.spec.provider,
-      model: selected.spec.model,
-      reasoning_effort: selected.supports_reasoning_effort
-        ? effort ?? selected.spec.reasoning_effort ?? 'medium'
-        : null,
-    }
-    mutation.mutate(spec)
-  }
 
   return (
     <div
@@ -211,56 +181,13 @@ function ReparseModal({
           and parse output.
         </p>
 
-        {catalogQuery.isLoading ? (
-          <p className="mt-4 text-sm text-ink-muted">Loading models…</p>
-        ) : catalog.length === 0 ? (
-          <p className="mt-4 text-sm text-danger">
-            No models available. Check API keys.
-          </p>
-        ) : (
-          <div className="mt-4 space-y-3">
-            <label className="block text-sm">
-              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                Model
-              </span>
-              <select
-                value={selected ? initialKey(selected) : ''}
-                onChange={(e) => setSelectedKey(e.target.value)}
-                className="w-full cursor-pointer rounded-[var(--radius-button)] border border-divider bg-card px-3 py-2 text-sm text-ink focus:border-fbb-orange focus:outline-none"
-              >
-                {catalog.map((e) => (
-                  <option key={initialKey(e)} value={initialKey(e)}>
-                    {e.display_name} ({e.spec.provider}/{e.spec.model})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {selected?.supports_reasoning_effort ? (
-              <label className="block text-sm">
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                  Reasoning effort
-                </span>
-                <select
-                  value={effort ?? selected.spec.reasoning_effort ?? 'medium'}
-                  onChange={(e) =>
-                    setEffort(e.target.value as ReasoningEffort)
-                  }
-                  className="w-full cursor-pointer rounded-[var(--radius-button)] border border-divider bg-card px-3 py-2 text-sm text-ink focus:border-fbb-orange focus:outline-none"
-                >
-                  <option value="minimal">minimal — cheapest, fastest</option>
-                  <option value="low">low</option>
-                  <option value="medium">medium — balanced</option>
-                  <option value="high">high — slowest, most accurate</option>
-                </select>
-              </label>
-            ) : (
-              <p className="text-[12px] text-ink-muted">
-                Reasoning effort doesn't apply to this model.
-              </p>
-            )}
-          </div>
-        )}
+        <div className="mt-4">
+          <ModelPicker
+            value={spec}
+            onChange={setSpec}
+            disabled={mutation.isPending}
+          />
+        </div>
 
         {mutation.isError ? (
           <p className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -281,8 +208,8 @@ function ReparseModal({
           </Button>
           <Button
             size="sm"
-            onClick={submit}
-            disabled={!selected || mutation.isPending}
+            onClick={() => spec && mutation.mutate(spec)}
+            disabled={!spec || mutation.isPending}
           >
             {mutation.isPending ? 'Starting…' : 'Reparse'}
           </Button>
