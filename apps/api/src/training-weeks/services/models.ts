@@ -118,12 +118,14 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
     },
   },
   {
-    // Kimi K2.6 (model id `kimi-k2.6`) — Moonshot's latest reasoning model.
-    // OpenAI-compatible endpoint, structured outputs supported.
-    spec: { provider: 'moonshot', model: 'kimi-k2.6', reasoning_effort: null },
-    display_name: 'Kimi K2.6',
+    // Kimi 2.6 (model id `kimi2.6`) — Moonshot's latest reasoning model.
+    // OpenAI-compatible endpoint, structured outputs supported. Like gpt-5,
+    // it rejects temperature overrides ("invalid temperature: only 1 is
+    // allowed for this model"), so we leave temperature off entirely.
+    spec: { provider: 'moonshot', model: 'kimi2.6', reasoning_effort: null },
+    display_name: 'Kimi 2.6',
     supports_reasoning_effort: false,
-    supports_temperature: true,
+    supports_temperature: false,
     pricing: {
       input_per_mtok_usd: 0.6,
       // Moonshot offers automatic context caching but pricing varies; treat
