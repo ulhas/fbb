@@ -7,7 +7,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 
-import type { AdminUserRow } from '@fbb/types'
+import type { AdminUserRow } from '@byow/types'
 
 import { Badge } from './ui/Badge'
 
@@ -114,7 +114,7 @@ export function UsersTable({ records }: { records: AdminUserRow[] }) {
       <table className="w-full">
         <thead>
           {table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id} className="bg-fbb-teal-tint/60">
+            <tr key={hg.id} className="bg-byow-teal-tint/60">
               {hg.headers.map((h) => {
                 const sort = h.column.getIsSorted()
                 const sortable = h.column.getCanSort()
@@ -161,7 +161,7 @@ export function UsersTable({ records }: { records: AdminUserRow[] }) {
 }
 
 function SortIndicator({ sort }: { sort: 'asc' | 'desc' | false }) {
-  if (sort === 'asc') return <span className="text-fbb-orange">↑</span>
-  if (sort === 'desc') return <span className="text-fbb-orange">↓</span>
+  if (sort === 'asc') return <span className="text-byow-orange">↑</span>
+  if (sort === 'desc') return <span className="text-byow-orange">↓</span>
   return null
 }

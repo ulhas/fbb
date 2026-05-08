@@ -1,5 +1,5 @@
 {
-  "name": "fbb-monorepo",
+  "name": "byow-monorepo",
   "private": true,
   "scripts": {
     "build": "turbo run build",

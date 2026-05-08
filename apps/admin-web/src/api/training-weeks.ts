@@ -6,7 +6,7 @@ import type {
   TrainingWeekDayDetail,
   TrainingWeekDetail,
   TrainingWeekSummary,
-} from '@fbb/types'
+} from '@byow/types'
 
 export type { TrainingWeekDayDetail, TrainingWeekDetail, TrainingWeekSummary }
 

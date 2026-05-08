@@ -301,7 +301,7 @@ export interface UploadJobSummary {
   error: string | null;
 }
 
-// Same shape as `@fbb/types` TrainingWeekDetail — typed loosely here to avoid
+// Same shape as `@byow/types` TrainingWeekDetail — typed loosely here to avoid
 // a workspace import cycle through the controller. The frontend type is the
 // authoritative wire shape.
 export interface UploadJobDetail {

@@ -26,30 +26,30 @@ All colors live in `Assets.xcassets/Colors/` so light/dark adaptation is automat
 
 | Token | Light | Dark | Use |
 |-------|-------|------|-----|
-| `FBBBackground` | `#F3F4F7` | `#0B1220` | App background. Avoid pure white / pure black (OLED smear). |
+| `BYOWBackground` | `#F3F4F7` | `#0B1220` | App background. Avoid pure white / pure black (OLED smear). |
 | `SurfaceCard` | `#FFFFFF` | `#11…` | Card / elevated surfaces. |
-| `FBBOrange` | `#EE4B0F` | `#EE4B0F` | Primary action / streak / "live" emphasis. |
-| `FBBOrangeDark` | `#C53D0C` | `#C53D0C` | Pressed state, gradient pair for avatars. |
-| `FBBOrangeTint` | adaptive | adaptive | 12% wash for selected chips, badges. |
-| `FBBTeal` | `#7EBFC7` | `#7EBFC7` | Recovery / nutrition / secondary action. |
-| `FBBTealTint` | adaptive | adaptive | Bridge-week banner, Nutrition accent backdrop. |
+| `BYOWOrange` | `#EE4B0F` | `#EE4B0F` | Primary action / streak / "live" emphasis. |
+| `BYOWOrangeDark` | `#C53D0C` | `#C53D0C` | Pressed state, gradient pair for avatars. |
+| `BYOWOrangeTint` | adaptive | adaptive | 12% wash for selected chips, badges. |
+| `BYOWTeal` | `#7EBFC7` | `#7EBFC7` | Recovery / nutrition / secondary action. |
+| `BYOWTealTint` | adaptive | adaptive | Bridge-week banner, Nutrition accent backdrop. |
 | `InkPrimary` | `#0F172A` | `#F1F5F9` | Body and headline text. ≥4.5:1 against background in both modes. |
 | `InkSecondary` | `#334155` | `#CBD5E1` | Subtitles, captions. |
 | `InkMuted` | `#64748B` | `#94A3B8` | Hints, ≥3:1. |
-| `FBBDivider` | adaptive | adaptive | Hairlines. |
+| `BYOWDivider` | adaptive | adaptive | Hairlines. |
 | `SemanticSuccess / Warning / Error` | adaptive | adaptive | Status only. Always paired with icon — color is never the only signal. |
 
 ### Cross-surface guidance
 
-- **Watch:** drop `FBBBackground` and use pure black for OLED power; keep `InkPrimary` (white) and `FBBOrange` accent. Cards collapse to background-less rows.
+- **Watch:** drop `BYOWBackground` and use pure black for OLED power; keep `InkPrimary` (white) and `BYOWOrange` accent. Cards collapse to background-less rows.
 - **Widget (Lock Screen):** monochrome accentable — only use `.widgetAccentable()` modifier on the most important glyph (streak count, percent complete). Color is decided by the user's Lock Screen tint.
-- **Widget (Home Screen, large/medium):** full color tokens allowed; respect `.widgetBackground(.fbbBackground)`.
+- **Widget (Home Screen, large/medium):** full color tokens allowed; respect `.widgetBackground(.byowBackground)`.
 
 ---
 
 ## 3. Typography
 
-Defined in `DesignSystem/Font+FBB.swift`. **Always use a token; never `Font.system(...)` inline.**
+Defined in `DesignSystem/Font+BYOW.swift`. **Always use a token; never `Font.system(...)` inline.**
 
 | Token | Style | Use |
 |-------|-------|-----|
@@ -174,7 +174,7 @@ Touch / hit-area minimums:
 - Small: streak number (`.metricLarge`) + "day streak" label, accent-orange ring.
 - Medium: today's session — track, day name, top-line metric, primary CTA glyph.
 - Large: 7-day strip + completion dots + next session.
-- Always include `.containerBackground(for: .widget) { Color.fbbBackground }`.
+- Always include `.containerBackground(for: .widget) { Color.byowBackground }`.
 - Always implement Lock Screen variants with `.widgetAccentable()` on the most important shape only.
 
 ---
@@ -194,7 +194,7 @@ Touch / hit-area minimums:
 
 - ❌ Emoji as a structural icon. Use SF Symbols.
 - ❌ Hardcoded hex. Always token.
-- ❌ Pure `#000000` background on iOS — use `FBBBackground` dark variant (`#0B1220`).
+- ❌ Pure `#000000` background on iOS — use `BYOWBackground` dark variant (`#0B1220`).
 - ❌ Loading spinners for >300ms. Use `SkeletonBlock`.
 - ❌ Animating `width / height / top / left`. Use `transform / opacity` only.
 - ❌ Profile as a top-level tab. It lives in Today's trailing toolbar.

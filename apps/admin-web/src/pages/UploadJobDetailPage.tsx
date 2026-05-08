@@ -18,7 +18,7 @@ import type {
   ParseMetrics,
   ParseWarning,
   UploadJobStatus,
-} from '@fbb/types'
+} from '@byow/types'
 
 // Bundle the worker through Vite so we don't ship a public/ asset. The worker
 // must match the pdfjs-dist version that react-pdf re-exports as `pdfjs`,
@@ -62,7 +62,7 @@ export function UploadJobDetailPage() {
         <div className="mt-6">
           <Link
             to="/upload-jobs"
-            className="text-sm font-semibold text-fbb-orange hover:text-fbb-orange-dark"
+            className="text-sm font-semibold text-byow-orange hover:text-byow-orange-dark"
           >
             ← Back to upload jobs
           </Link>
@@ -80,7 +80,7 @@ export function UploadJobDetailPage() {
         <div className="min-w-0">
           <Link
             to="/upload-jobs"
-            className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-fbb-orange hover:text-fbb-orange-dark"
+            className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-byow-orange hover:text-byow-orange-dark"
           >
             ← Upload jobs
           </Link>
@@ -248,7 +248,7 @@ function PdfPanel({ jobId }: { jobId: string }) {
           href={url}
           target="_blank"
           rel="noreferrer"
-          className="text-[12px] font-semibold text-fbb-orange hover:text-fbb-orange-dark"
+          className="text-[12px] font-semibold text-byow-orange hover:text-byow-orange-dark"
         >
           Open in new tab ↗
         </a>
@@ -337,7 +337,7 @@ function SummaryPanel({
                 <Link
                   to="/training-weeks/$weekStartsOn"
                   params={{ weekStartsOn }}
-                  className="font-mono text-fbb-orange hover:text-fbb-orange-dark"
+                  className="font-mono text-byow-orange hover:text-byow-orange-dark"
                 >
                   {weekStartsOn}
                 </Link>
@@ -404,7 +404,7 @@ function SummaryPanel({
           <Link
             to="/upload-jobs/compare"
             search={{ a: sourceJobId }}
-            className="text-[12px] font-semibold text-fbb-orange hover:text-fbb-orange-dark"
+            className="text-[12px] font-semibold text-byow-orange hover:text-byow-orange-dark"
           >
             Compare with another run →
           </Link>

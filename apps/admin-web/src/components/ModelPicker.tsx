@@ -5,7 +5,7 @@ import {
   listModelCatalog,
   type ModelCatalogEntry,
 } from '../api/upload-jobs'
-import type { ModelSpec, ReasoningEffort } from '@fbb/types'
+import type { ModelSpec, ReasoningEffort } from '@byow/types'
 
 // Provider/model + reasoning-effort dropdowns used by both UploadDialog (new
 // upload) and the upload-jobs/$id reparse modal. Owns its own catalog fetch
@@ -110,7 +110,7 @@ export function ModelPicker({ value, onChange, disabled }: ModelPickerProps) {
           value={resolved ? initialKey(resolved) : ''}
           onChange={(e) => onModelChange(e.target.value)}
           disabled={disabled}
-          className="w-full cursor-pointer rounded-[var(--radius-button)] border border-divider bg-card px-3 py-2 text-sm text-ink focus:border-fbb-orange focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full cursor-pointer rounded-[var(--radius-button)] border border-divider bg-card px-3 py-2 text-sm text-ink focus:border-byow-orange focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         >
           {catalog.map((e) => (
             <option key={initialKey(e)} value={initialKey(e)}>
@@ -134,7 +134,7 @@ export function ModelPicker({ value, onChange, disabled }: ModelPickerProps) {
             }
             onChange={(e) => onEffortChange(e.target.value as ReasoningEffort)}
             disabled={disabled}
-            className="w-full cursor-pointer rounded-[var(--radius-button)] border border-divider bg-card px-3 py-2 text-sm text-ink focus:border-fbb-orange focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full cursor-pointer rounded-[var(--radius-button)] border border-divider bg-card px-3 py-2 text-sm text-ink focus:border-byow-orange focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
           >
             <option value="minimal">minimal — cheapest, fastest</option>
             <option value="low">low</option>

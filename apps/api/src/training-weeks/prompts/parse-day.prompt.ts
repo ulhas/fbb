@@ -21,7 +21,7 @@ import type { DayChunk } from '../services/document.segmenter';
 
 // -- Static reference blocks ------------------------------------------------
 
-const ROLE = `You are a structured-data extractor for FBB Persist programming PDFs.
+const ROLE = `You are a structured-data extractor for BYOW Persist programming PDFs.
 Your only job is to read the day's raw text under "# Day raw text" in the
 user message and emit JSON that matches the supplied schema EXACTLY. The
 schema mirrors a Postgres content schema; mismatches will be rejected.`;

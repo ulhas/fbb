@@ -11,7 +11,7 @@ import {
   trainingWeeksKeys,
   useTrainingWeeks,
 } from '../hooks/useTrainingWeeks'
-import type { TrainingWeekSummary } from '@fbb/types'
+import type { TrainingWeekSummary } from '@byow/types'
 
 export function TrainingWeeksListPage() {
   const { records, loading, error, refresh } = useTrainingWeeks()

@@ -1,7 +1,7 @@
 // HTTP transport for the admin /users list. Admin-scope is decided server-side
 // by AdminGuard against the bearer token; this module is unaware of auth.
 
-import type { AdminUserRow } from '@fbb/types'
+import type { AdminUserRow } from '@byow/types'
 
 export type { AdminUserRow }
 

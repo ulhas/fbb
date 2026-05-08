@@ -1,4 +1,4 @@
-# FBB Persist · Postgres schema design
+# BYOW · Postgres schema design
 
 Canonical Postgres source-of-truth for the Phase 1 native rebuild. This document
 unifies the table fragments quoted across the PRD (Movement, Substitution,

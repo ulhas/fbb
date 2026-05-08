@@ -13,7 +13,7 @@ import type {
   UploadJobStatus,
   UploadJobSummary,
   UploadResponse,
-} from '@fbb/types'
+} from '@byow/types'
 
 export type {
   ModelSpec,

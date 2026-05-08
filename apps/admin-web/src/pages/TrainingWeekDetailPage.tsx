@@ -29,7 +29,7 @@ import type {
   TrainingWeekDayCell,
   TrainingWeekDayMeta,
   TrainingWeekTrackIndex,
-} from '@fbb/types'
+} from '@byow/types'
 
 // Sun-indexed so Date.getDay() maps directly. Using scheduled_on as the source
 // of truth (rather than ParsedDay.position) means weekday labels stay correct
@@ -203,7 +203,7 @@ export function TrainingWeekDetailPage() {
         <div className="mt-6">
           <Link
             to="/training-weeks"
-            className="text-sm font-semibold text-fbb-orange hover:text-fbb-orange-dark"
+            className="text-sm font-semibold text-byow-orange hover:text-byow-orange-dark"
           >
             ← Back to training weeks
           </Link>
@@ -353,7 +353,7 @@ function ViewToggle({
             onClick={() => onChange(it.key)}
             className={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
               active
-                ? 'bg-fbb-orange text-white'
+                ? 'bg-byow-orange text-white'
                 : 'text-ink-muted hover:text-ink'
             }`}
           >
@@ -459,8 +459,8 @@ function Chip({
       onClick={onClick}
       className={`inline-flex cursor-pointer items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
         active
-          ? 'border-fbb-orange bg-fbb-orange-tint text-fbb-orange-dark'
-          : 'border-divider bg-surface text-ink-secondary hover:border-fbb-orange/40 hover:text-ink'
+          ? 'border-byow-orange bg-byow-orange-tint text-byow-orange-dark'
+          : 'border-divider bg-surface text-ink-secondary hover:border-byow-orange/40 hover:text-ink'
       }`}
     >
       {children}
@@ -633,8 +633,8 @@ function DayCalendarPill({
       onClick={onClick}
       className={`flex min-w-[124px] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-[var(--radius-card)] border px-3 py-2 text-left transition-colors ${
         active
-          ? 'border-fbb-orange bg-fbb-orange-tint shadow-[0_4px_12px_rgba(15,23,42,0.08)]'
-          : 'border-divider bg-card hover:border-fbb-orange/40'
+          ? 'border-byow-orange bg-byow-orange-tint shadow-[0_4px_12px_rgba(15,23,42,0.08)]'
+          : 'border-divider bg-card hover:border-byow-orange/40'
       }`}
     >
       <div className="flex items-baseline gap-1.5">
@@ -818,8 +818,8 @@ function DayPill({
       onClick={onClick}
       className={`flex min-w-[124px] shrink-0 cursor-pointer flex-col items-start gap-1 rounded-[var(--radius-card)] border px-3 py-2 text-left transition-colors ${
         active
-          ? 'border-fbb-orange bg-fbb-orange-tint shadow-[0_4px_12px_rgba(15,23,42,0.08)]'
-          : 'border-divider bg-card hover:border-fbb-orange/40'
+          ? 'border-byow-orange bg-byow-orange-tint shadow-[0_4px_12px_rgba(15,23,42,0.08)]'
+          : 'border-divider bg-card hover:border-byow-orange/40'
       }`}
     >
       <div className="flex items-baseline gap-1.5">
@@ -956,7 +956,7 @@ function UnderparsedDayCallout({
             type="button"
             onClick={handleClick}
             disabled={state === 'running'}
-            className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[var(--radius-button)] bg-fbb-orange px-5 text-sm font-semibold text-white transition-colors hover:bg-fbb-orange-dark disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[var(--radius-button)] bg-byow-orange px-5 text-sm font-semibold text-white transition-colors hover:bg-byow-orange-dark disabled:cursor-not-allowed disabled:opacity-60"
           >
             {state === 'running' ? (
               <>
@@ -1009,7 +1009,7 @@ function WeekNavLink({
       search={carriedSearch}
       replace
       aria-label={direction === 'prev' ? 'Previous week' : 'Next week'}
-      className="grid h-9 w-9 cursor-pointer place-items-center rounded-full border border-divider bg-card text-ink-muted transition-colors hover:border-fbb-orange/60 hover:text-fbb-orange-dark"
+      className="grid h-9 w-9 cursor-pointer place-items-center rounded-full border border-divider bg-card text-ink-muted transition-colors hover:border-byow-orange/60 hover:text-byow-orange-dark"
     >
       {arrow}
     </Link>
@@ -1103,7 +1103,7 @@ function MatrixView({
               <tr>
                 <td
                   colSpan={1 + weekDates.length}
-                  className="sticky left-0 z-10 border-b border-divider bg-fbb-teal-tint/40 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-secondary"
+                  className="sticky left-0 z-10 border-b border-divider bg-byow-teal-tint/40 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-secondary"
                 >
                   {FAMILY_LABEL[family]}
                 </td>
@@ -1116,7 +1116,7 @@ function MatrixView({
                     </div>
                     <div className="mt-0.5 flex items-center gap-1">
                       {t.cadence ? (
-                        <span className="rounded bg-fbb-orange-tint px-1.5 py-0.5 font-mono text-[9px] font-semibold text-fbb-orange-dark">
+                        <span className="rounded bg-byow-orange-tint px-1.5 py-0.5 font-mono text-[9px] font-semibold text-byow-orange-dark">
                           {t.cadence}
                         </span>
                       ) : null}
@@ -1165,15 +1165,15 @@ function MatrixCell({
   const tone = kindToneOf(day.kind)
   const cleanName = day.display_name.replace(/^Week \d+ Day \d+ - /, '')
   const stripeClass: Record<'orange' | 'info' | 'neutral', string> = {
-    orange: 'border-l-fbb-orange',
-    info: 'border-l-fbb-teal',
+    orange: 'border-l-byow-orange',
+    info: 'border-l-byow-teal',
     neutral: 'border-l-divider',
   }
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-[92px] w-full cursor-pointer flex-col items-start gap-1 overflow-hidden border-l-4 px-3 py-2 text-left transition-colors hover:bg-fbb-orange-tint/30 ${stripeClass[tone]}`}
+      className={`flex h-[92px] w-full cursor-pointer flex-col items-start gap-1 overflow-hidden border-l-4 px-3 py-2 text-left transition-colors hover:bg-byow-orange-tint/30 ${stripeClass[tone]}`}
     >
       <Badge tone={tone}>{humanize(day.kind)}</Badge>
       {day.section_count > 0 ? (
@@ -1234,8 +1234,8 @@ function LessonBody({ day }: { day: ParsedDay }) {
   const note = day.coaching_notes[0]
   if (!note) return null
   return (
-    <div className="rounded-md bg-fbb-orange-tint/40 p-3 text-sm leading-relaxed text-ink-secondary">
-      <div className="text-xs font-semibold uppercase tracking-wider text-fbb-orange-dark">
+    <div className="rounded-md bg-byow-orange-tint/40 p-3 text-sm leading-relaxed text-ink-secondary">
+      <div className="text-xs font-semibold uppercase tracking-wider text-byow-orange-dark">
         {humanize(note.kind)}
       </div>
       <div className="mt-1 whitespace-pre-wrap text-[13px]">
@@ -1259,7 +1259,7 @@ function SectionDrawer({
     >
       <summary className="flex items-start justify-between gap-3 px-3 py-2.5">
         <div className="flex flex-1 items-start gap-2">
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-fbb-orange-tint font-mono text-xs font-bold text-fbb-orange-dark">
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-byow-orange-tint font-mono text-xs font-bold text-byow-orange-dark">
             {section.letter}
           </span>
           <div>
@@ -1334,7 +1334,7 @@ function ExerciseRow({ ex }: { ex: ParsedExercise }) {
   return (
     <div
       className={`rounded-sm px-2 py-1.5 text-[13px] ${
-        isAlt ? 'border-l-2 border-fbb-teal pl-3 text-ink-secondary' : 'text-ink'
+        isAlt ? 'border-l-2 border-byow-teal pl-3 text-ink-secondary' : 'text-ink'
       }`}
     >
       <div className="flex items-center justify-between gap-2">
@@ -1342,7 +1342,7 @@ function ExerciseRow({ ex }: { ex: ParsedExercise }) {
           {isAlt ? <span className="text-ink-muted">or </span> : null}
           {ex.movement_display_name}
           {ex.chained_into_next ? (
-            <span className="ml-1.5 text-[10px] font-normal text-fbb-orange-dark">
+            <span className="ml-1.5 text-[10px] font-normal text-byow-orange-dark">
               → directly into
             </span>
           ) : null}
@@ -1380,7 +1380,7 @@ function SetLine({ set }: { set: ParsedSet }) {
       {formatRpe(set) ? (
         <>
           <span>·</span>
-          <span className="text-fbb-orange-dark">{formatRpe(set)}</span>
+          <span className="text-byow-orange-dark">{formatRpe(set)}</span>
         </>
       ) : null}
       {formatWeight(set) ? (
@@ -1390,7 +1390,7 @@ function SetLine({ set }: { set: ParsedSet }) {
         </>
       ) : null}
       {set.has_drop_set ? (
-        <span className="ml-1 rounded bg-fbb-orange-tint px-1 py-0.5 text-[9px] font-semibold uppercase text-fbb-orange-dark">
+        <span className="ml-1 rounded bg-byow-orange-tint px-1 py-0.5 text-[9px] font-semibold uppercase text-byow-orange-dark">
           drop
         </span>
       ) : null}

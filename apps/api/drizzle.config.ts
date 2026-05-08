@@ -6,7 +6,7 @@ export default defineConfig({
   schema: './src/database/schema/index.ts',
   dialect: 'postgresql',
   dbCredentials: {
-    url: 'postgresql://ulhas@localhost:5432/fbb',
+    url: 'postgresql://ulhas@localhost:5432/byow',
   },
 });
 

@@ -8,7 +8,7 @@ import {
   type UploadJobStatus,
   type UploadOptions,
 } from '../api/upload-jobs'
-import type { ModelSpec } from '@fbb/types'
+import type { ModelSpec } from '@byow/types'
 
 function errorMessage(err: unknown): string {
   if (err instanceof UploadError) return `${err.status}: ${err.message}`
@@ -220,8 +220,8 @@ export function UploadDialog({
                 onClick={() => fileInputRef.current?.click()}
                 className={`flex cursor-pointer flex-col items-center justify-center rounded-[var(--radius-card)] border-2 border-dashed px-6 py-10 text-center transition-colors ${
                   dragActive
-                    ? 'border-fbb-orange bg-fbb-orange-tint'
-                    : 'border-divider bg-surface hover:border-fbb-orange/60 hover:bg-fbb-orange-tint/40'
+                    ? 'border-byow-orange bg-byow-orange-tint'
+                    : 'border-divider bg-surface hover:border-byow-orange/60 hover:bg-byow-orange-tint/40'
                 }`}
               >
                 <DropIcon />
@@ -249,7 +249,7 @@ export function UploadDialog({
                   type="checkbox"
                   checked={dryRun}
                   onChange={(e) => setDryRun(e.target.checked)}
-                  className="mt-1 h-4 w-4 accent-fbb-orange"
+                  className="mt-1 h-4 w-4 accent-byow-orange"
                 />
                 <span>
                   <span className="font-medium text-ink">Dry run</span>
@@ -403,7 +403,7 @@ function DropIcon() {
       height="40"
       viewBox="0 0 24 24"
       fill="none"
-      className="text-fbb-orange"
+      className="text-byow-orange"
     >
       <path
         d="M12 16V4M12 4L7 9M12 4L17 9"
@@ -446,7 +446,7 @@ function CheckIcon() {
 function Spinner() {
   return (
     <svg
-      className="mx-auto h-9 w-9 animate-spin text-fbb-orange"
+      className="mx-auto h-9 w-9 animate-spin text-byow-orange"
       viewBox="0 0 24 24"
       fill="none"
     >

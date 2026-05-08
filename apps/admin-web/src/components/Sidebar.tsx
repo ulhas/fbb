@@ -39,13 +39,13 @@ export function Sidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   return (
-    <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-fbb-teal-tint bg-card">
+    <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-byow-teal-tint bg-card">
       <div className="flex h-16 items-center gap-2.5 px-5">
-        <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-fbb-orange text-white shadow-sm">
-          <FBBMark />
+        <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-byow-orange text-white shadow-sm">
+          <BYOWMark />
         </span>
         <div className="flex flex-col leading-tight">
-          <span className="text-[15px] font-semibold text-ink">FBB Persist</span>
+          <span className="text-[15px] font-semibold text-ink">BYOW Persist</span>
           <span className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">
             Admin Console
           </span>
@@ -62,7 +62,7 @@ export function Sidebar() {
               to={item.to}
               className={`flex items-center gap-2.5 rounded-[var(--radius-button)] px-3 py-2 text-sm font-medium transition-colors ${
                 active
-                  ? 'bg-fbb-orange-tint text-fbb-orange-dark'
+                  ? 'bg-byow-orange-tint text-byow-orange-dark'
                   : 'text-ink-secondary hover:bg-surface'
               }`}
             >
@@ -74,7 +74,7 @@ export function Sidebar() {
       </nav>
 
       <div className="px-5 py-4">
-        <span className="inline-flex rounded-full bg-fbb-teal-tint px-3 py-1 text-[11px] font-medium text-ink-secondary">
+        <span className="inline-flex rounded-full bg-byow-teal-tint px-3 py-1 text-[11px] font-medium text-ink-secondary">
           No-auth dev mode
         </span>
       </div>
@@ -82,7 +82,7 @@ export function Sidebar() {
   )
 }
 
-function FBBMark() {
+function BYOWMark() {
   return (
     <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
       <rect x="2" y="9" width="3" height="5" rx="1" fill="currentColor" />

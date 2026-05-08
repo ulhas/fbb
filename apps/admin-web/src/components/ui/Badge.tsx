@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-// Tiny, opinionated badge — no variants beyond the four FBB semantic states
+// Tiny, opinionated badge — no variants beyond the four BYOW semantic states
 // plus a neutral chrome state for metadata pills. Anything more elaborate
 // belongs in a full design system, not this admin tool (YAGNI).
 
@@ -8,11 +8,11 @@ type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'orange'
 
 const toneClass: Record<Tone, string> = {
   neutral: 'bg-surface text-ink-secondary border-divider',
-  info: 'bg-fbb-teal-tint text-ink border-fbb-teal',
+  info: 'bg-byow-teal-tint text-ink border-byow-teal',
   success: 'bg-[#E6F6EE] text-success border-success/40',
   warning: 'bg-[#FCEFD9] text-warning border-warning/40',
   danger: 'bg-[#FCE7E7] text-danger border-danger/40',
-  orange: 'bg-fbb-orange-tint text-fbb-orange-dark border-fbb-orange/40',
+  orange: 'bg-byow-orange-tint text-byow-orange-dark border-byow-orange/40',
 }
 
 export function Badge({

@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
-/* FBB design tokens — sampled from prd.docx §3.1 / §3.2 / §3.3 / §3.4. Do not
+/* BYOW design tokens — sampled from prd.docx §3.1 / §3.2 / §3.3 / §3.4. Do not
  * approximate. The Phase-1 native apps consume the same hex values from their
  * Asset Catalogs and Android color resources, so cross-surface continuity
  * depends on these matching exactly.
  */
 @theme {
-  --color-fbb-orange: #EE4B0F;
-  --color-fbb-orange-dark: #C53D0C;
-  --color-fbb-orange-tint: #FDE9E0;
-  --color-fbb-teal: #7EBFC7;
-  --color-fbb-teal-dark: #5C9CA4;
-  --color-fbb-teal-tint: #D1E5E9;
+  --color-byow-orange: #EE4B0F;
+  --color-byow-orange-dark: #C53D0C;
+  --color-byow-orange-tint: #FDE9E0;
+  --color-byow-teal: #7EBFC7;
+  --color-byow-teal-dark: #5C9CA4;
+  --color-byow-teal-tint: #D1E5E9;
 
   --color-ink: #0F172A;
   --color-ink-secondary: #334155;
@@ -58,7 +58,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Native scrollbar treatment that doesn't fight the FBB neutrals. */
+/* Native scrollbar treatment that doesn't fight the BYOW neutrals. */
 ::-webkit-scrollbar {
   width: 12px;
   height: 12px;

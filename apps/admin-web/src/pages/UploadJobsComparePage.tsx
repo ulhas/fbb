@@ -9,7 +9,7 @@ import type {
   UploadJobDetail,
   UploadJobStatus,
   UploadJobSummary,
-} from '@fbb/types'
+} from '@byow/types'
 
 const STATUS_TONE: Record<
   UploadJobStatus,
@@ -58,7 +58,7 @@ export function UploadJobsComparePage() {
         <Link
           to="/upload-jobs/$id"
           params={{ id: aRecord.id }}
-          className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-fbb-orange hover:text-fbb-orange-dark"
+          className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-byow-orange hover:text-byow-orange-dark"
         >
           ← Back to job
         </Link>
@@ -119,7 +119,7 @@ function ColumnPanel({
           <Link
             to="/upload-jobs/$id"
             params={{ id: record.id }}
-            className="font-mono text-xs text-fbb-orange hover:text-fbb-orange-dark"
+            className="font-mono text-xs text-byow-orange hover:text-byow-orange-dark"
           >
             {record.id.slice(0, 8)}…
           </Link>
@@ -215,7 +215,7 @@ function PickerColumn({
                 <Link
                   to="/upload-jobs/compare"
                   search={{ a: aId, b: p.id }}
-                  className="flex items-center justify-between gap-3 rounded-md bg-card px-3 py-2 text-sm hover:bg-fbb-orange-tint/40"
+                  className="flex items-center justify-between gap-3 rounded-md bg-card px-3 py-2 text-sm hover:bg-byow-orange-tint/40"
                 >
                   <span className="flex flex-col">
                     <span className="text-ink">
@@ -253,7 +253,7 @@ function PeerSwitcher({
   if (peers.length <= 1) return null
   return (
     <details className="border-t border-divider pt-3 text-sm">
-      <summary className="cursor-pointer text-[12px] font-semibold text-fbb-orange hover:text-fbb-orange-dark">
+      <summary className="cursor-pointer text-[12px] font-semibold text-byow-orange hover:text-byow-orange-dark">
         Switch peer run
       </summary>
       <ul className="mt-2 flex flex-col gap-1">
@@ -265,7 +265,7 @@ function PeerSwitcher({
                 to="/upload-jobs/compare"
                 search={{ a: aId, b: p.id }}
                 replace
-                className="flex items-center justify-between gap-3 rounded-md bg-surface px-3 py-1.5 text-[13px] hover:bg-fbb-orange-tint/40"
+                className="flex items-center justify-between gap-3 rounded-md bg-surface px-3 py-1.5 text-[13px] hover:bg-byow-orange-tint/40"
               >
                 <span>{p.model_spec?.model ?? '—'}</span>
                 <span className="text-[11px] text-ink-muted">

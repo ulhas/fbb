@@ -16,8 +16,8 @@ export function Stat({
   accent?: 'orange' | 'teal' | 'success' | 'warning'
 }) {
   const accentClass: Record<NonNullable<typeof accent>, string> = {
-    orange: 'border-l-fbb-orange',
-    teal: 'border-l-fbb-teal',
+    orange: 'border-l-byow-orange',
+    teal: 'border-l-byow-teal',
     success: 'border-l-success',
     warning: 'border-l-warning',
   }

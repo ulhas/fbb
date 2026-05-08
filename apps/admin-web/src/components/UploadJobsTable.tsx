@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-table'
 import { useNavigate } from '@tanstack/react-router'
 
-import type { UploadJobStatus, UploadJobSummary } from '@fbb/types'
+import type { UploadJobStatus, UploadJobSummary } from '@byow/types'
 
 import { Badge } from './ui/Badge'
 
@@ -209,7 +209,7 @@ export function UploadJobsTable({
       <table className="w-full">
         <thead>
           {table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id} className="bg-fbb-teal-tint/60">
+            <tr key={hg.id} className="bg-byow-teal-tint/60">
               {hg.headers.map((h) => {
                 const sort = h.column.getIsSorted()
                 const sortable = h.column.getCanSort()
@@ -257,7 +257,7 @@ export function UploadJobsTable({
                   })
                 }
               }}
-              className={`cursor-pointer transition-colors hover:bg-fbb-orange-tint/40 focus-visible:bg-fbb-orange-tint/60 focus-visible:outline-none ${
+              className={`cursor-pointer transition-colors hover:bg-byow-orange-tint/40 focus-visible:bg-byow-orange-tint/60 focus-visible:outline-none ${
                 i !== 0 ? 'border-t border-divider' : ''
               }`}
             >
@@ -283,7 +283,7 @@ function formatUsd(usd: number): string {
 }
 
 function SortIndicator({ sort }: { sort: 'asc' | 'desc' | false }) {
-  if (sort === 'asc') return <span className="text-fbb-orange">↑</span>
-  if (sort === 'desc') return <span className="text-fbb-orange">↓</span>
+  if (sort === 'asc') return <span className="text-byow-orange">↑</span>
+  if (sort === 'desc') return <span className="text-byow-orange">↓</span>
   return null
 }

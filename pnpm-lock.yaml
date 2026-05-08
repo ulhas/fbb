@@ -14,7 +14,7 @@ importers:
 
   apps/admin-web:
     dependencies:
-      '@fbb/types':
+      '@byow/types':
         specifier: workspace:*
         version: link:../../packages/types
       '@tanstack/react-query':
@@ -111,7 +111,7 @@ importers:
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.47
         version: 2.0.47(zod@4.4.3)
-      '@fbb/types':
+      '@byow/types':
         specifier: workspace:*
         version: link:../../packages/types
       '@nestjs/common':

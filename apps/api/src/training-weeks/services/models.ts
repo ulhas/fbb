@@ -122,7 +122,7 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
     // OpenAI-compatible endpoint, structured outputs supported. Like gpt-5,
     // it rejects temperature overrides ("invalid temperature: only 1 is
     // allowed for this model"), so we leave temperature off entirely.
-    spec: { provider: 'moonshot', model: 'kimi2.6', reasoning_effort: null },
+    spec: { provider: 'moonshot', model: 'kimi-k2.6', reasoning_effort: null },
     display_name: 'Kimi 2.6',
     supports_reasoning_effort: false,
     supports_temperature: false,

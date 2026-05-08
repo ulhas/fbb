@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-table'
 import { useNavigate } from '@tanstack/react-router'
 
-import type { TrainingWeekSummary, UnderparsedDayRef } from '@fbb/types'
+import type { TrainingWeekSummary, UnderparsedDayRef } from '@byow/types'
 
 import { Badge } from './ui/Badge'
 
@@ -182,7 +182,7 @@ export function TrainingWeeksTable({
       <table className="w-full">
         <thead>
           {table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id} className="bg-fbb-teal-tint/60">
+            <tr key={hg.id} className="bg-byow-teal-tint/60">
               {hg.headers.map((h) => {
                 const sort = h.column.getIsSorted()
                 const sortable = h.column.getCanSort()
@@ -230,7 +230,7 @@ export function TrainingWeeksTable({
                   })
                 }
               }}
-              className={`cursor-pointer transition-colors hover:bg-fbb-orange-tint/40 focus-visible:bg-fbb-orange-tint/60 focus-visible:outline-none ${
+              className={`cursor-pointer transition-colors hover:bg-byow-orange-tint/40 focus-visible:bg-byow-orange-tint/60 focus-visible:outline-none ${
                 i !== 0 ? 'border-t border-divider' : ''
               }`}
             >
@@ -248,8 +248,8 @@ export function TrainingWeeksTable({
 }
 
 function SortIndicator({ sort }: { sort: 'asc' | 'desc' | false }) {
-  if (sort === 'asc') return <span className="text-fbb-orange">↑</span>
-  if (sort === 'desc') return <span className="text-fbb-orange">↓</span>
+  if (sort === 'asc') return <span className="text-byow-orange">↑</span>
+  if (sort === 'desc') return <span className="text-byow-orange">↓</span>
   return null
 }
 
@@ -339,7 +339,7 @@ function UnderparsedPopover({
                       search: { day: scheduled },
                     })
                   }}
-                  className="flex w-full cursor-pointer items-start justify-between gap-3 rounded-md px-2 py-1.5 text-left hover:bg-fbb-orange-tint/40"
+                  className="flex w-full cursor-pointer items-start justify-between gap-3 rounded-md px-2 py-1.5 text-left hover:bg-byow-orange-tint/40"
                 >
                   <div className="flex min-w-0 flex-col">
                     <span className="text-[13px] font-semibold text-ink">
@@ -349,7 +349,7 @@ function UnderparsedPopover({
                       {refs.map((r) => r.track_code).join(', ')}
                     </span>
                   </div>
-                  <span className="shrink-0 text-[11px] text-fbb-orange">→</span>
+                  <span className="shrink-0 text-[11px] text-byow-orange">→</span>
                 </button>
               </li>
             ))}
@@ -365,7 +365,7 @@ function UnderparsedPopover({
                   params: { weekStartsOn },
                 })
               }}
-              className="cursor-pointer text-[12px] font-semibold text-fbb-orange hover:text-fbb-orange-dark"
+              className="cursor-pointer text-[12px] font-semibold text-byow-orange hover:text-byow-orange-dark"
             >
               View week details →
             </button>

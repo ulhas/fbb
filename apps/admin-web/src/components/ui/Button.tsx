@@ -19,13 +19,13 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const baseClass =
-  'inline-flex items-center justify-center gap-2 rounded-[var(--radius-button)] font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fbb-orange focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:opacity-60'
+  'inline-flex items-center justify-center gap-2 rounded-[var(--radius-button)] font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-byow-orange focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:opacity-60'
 
 const variantClass: Record<Variant, string> = {
   primary:
-    'bg-fbb-orange text-white hover:bg-fbb-orange-dark active:bg-fbb-orange-dark shadow-sm',
+    'bg-byow-orange text-white hover:bg-byow-orange-dark active:bg-byow-orange-dark shadow-sm',
   secondary:
-    'bg-card text-ink border border-fbb-orange hover:bg-fbb-orange-tint active:bg-fbb-orange-tint',
+    'bg-card text-ink border border-byow-orange hover:bg-byow-orange-tint active:bg-byow-orange-tint',
 }
 
 const sizeClass: Record<Size, string> = {

@@ -4,7 +4,7 @@ import {
   TrainingWeekDetailPage,
   type WeekSearch,
 } from '../../pages/TrainingWeekDetailPage'
-import type { TrackFamily } from '@fbb/types'
+import type { TrackFamily } from '@byow/types'
 
 export const Route = createFileRoute('/training-weeks/$weekStartsOn')({
   component: TrainingWeekDetailPage,

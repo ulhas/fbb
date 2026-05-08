@@ -143,7 +143,7 @@ function Editor({
         value={body}
         onChange={(e) => onBodyChange(e.target.value)}
         spellCheck={false}
-        className="min-h-[480px] w-full flex-1 resize-y rounded-[var(--radius-button)] border border-divider bg-surface p-3 font-mono text-[12px] leading-relaxed text-ink focus:border-fbb-orange focus:outline-none"
+        className="min-h-[480px] w-full flex-1 resize-y rounded-[var(--radius-button)] border border-divider bg-surface p-3 font-mono text-[12px] leading-relaxed text-ink focus:border-byow-orange focus:outline-none"
       />
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
         <input
@@ -151,7 +151,7 @@ function Editor({
           value={label}
           onChange={(e) => onLabelChange(e.target.value)}
           placeholder="Optional label (e.g. 'fix Spoto press')"
-          className="rounded-[var(--radius-button)] border border-divider bg-card px-3 py-2 text-sm text-ink focus:border-fbb-orange focus:outline-none"
+          className="rounded-[var(--radius-button)] border border-divider bg-card px-3 py-2 text-sm text-ink focus:border-byow-orange focus:outline-none"
         />
         <Button
           variant="secondary"
@@ -220,7 +220,7 @@ function HistoryPanel({
               key={v.id}
               className={`rounded-md border p-2.5 text-sm ${
                 v.is_active
-                  ? 'border-fbb-orange bg-fbb-orange-tint/40'
+                  ? 'border-byow-orange bg-byow-orange-tint/40'
                   : 'border-divider bg-surface'
               }`}
             >
@@ -242,7 +242,7 @@ function HistoryPanel({
                 <button
                   type="button"
                   onClick={() => onPreview(v)}
-                  className="cursor-pointer text-[11px] font-semibold text-fbb-orange hover:text-fbb-orange-dark"
+                  className="cursor-pointer text-[11px] font-semibold text-byow-orange hover:text-byow-orange-dark"
                 >
                   Load into editor
                 </button>
@@ -251,7 +251,7 @@ function HistoryPanel({
                     type="button"
                     onClick={() => onActivate(v.id)}
                     disabled={activatingId === v.id}
-                    className="cursor-pointer text-[11px] font-semibold text-ink hover:text-fbb-orange-dark disabled:cursor-not-allowed disabled:opacity-60"
+                    className="cursor-pointer text-[11px] font-semibold text-ink hover:text-byow-orange-dark disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {activatingId === v.id ? 'Activating…' : 'Restore'}
                   </button>

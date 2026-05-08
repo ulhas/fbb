@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 export const weightRefAbsoluteSchema = z.object({
   kind: z.literal('absolute'),
-  // FBB authors absolute loads in lb pairs ("53/35# Male/Female"). The parser
+  // BYOW authors absolute loads in lb pairs ("53/35# Male/Female"). The parser
   // normalises to kg here so the canonical column matches §1's numeric(7,3).
   // `.nullable()` (not `.optional()`) — OpenAI Structured Outputs strict mode
   // requires every property to appear in `required`; null carries "absent".
