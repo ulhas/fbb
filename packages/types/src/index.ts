@@ -184,6 +184,9 @@ export interface ParseWarning {
 
 export interface ParseMetrics {
   model: string;
+  // The full ModelSpec the run actually used (provider + model + effort).
+  // Optional so older payloads (pre-multi-provider) still validate.
+  model_spec?: ModelSpec;
   temperature: number;
   extraction_ms: number;
   segmentation_ms: number;
@@ -352,6 +355,8 @@ export interface UploadJobSummary {
   tokens_total: number;
   tokens_input_total: number;
   tokens_output_total: number;
+  // ModelSpec the run actually used. Null for older jobs (pre-multi-provider).
+  model_spec: ModelSpec | null;
   uploaded_at: string;
   finished_at: string | null;
   error: string | null;
@@ -369,6 +374,22 @@ export interface UploadJobDetail {
   parse_warnings: ParseWarning[];
   parse_metrics: ParseMetrics | null;
   dry_run_only: boolean;
+}
+
+// Identifies which model to use for the day-parser. Provider determines the
+// SDK adapter (openai/anthropic), `model` is the provider-specific model id
+// ("gpt-5.5-2026-04-23", "claude-sonnet-4-6", etc.), and reasoning_effort
+// only applies to OpenAI's reasoning models (gpt-5/o-series); ignored
+// elsewhere. Persisted on each upload-job's parse_metrics so reparse runs
+// can be compared.
+export type ModelProvider = 'openai' | 'anthropic';
+
+export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
+
+export interface ModelSpec {
+  provider: ModelProvider;
+  model: string;
+  reasoning_effort?: ReasoningEffort | null;
 }
 
 // One row per registered user, surfaced to the admin console at GET /users.

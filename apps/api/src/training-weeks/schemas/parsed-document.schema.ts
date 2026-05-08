@@ -264,11 +264,21 @@ export const parsedDaySchema = z.object({
 
 export type ParsedDay = z.infer<typeof parsedDaySchema>;
 
-// Schema the LLM fills per-day. Excludes `raw_text` and `cms_source_id` (those
-// are added by the orchestrator after the LLM returns).
+// Schema the LLM fills per-day. The orchestrator patches in everything the
+// segmenter already knows (scheduled_on, position, display_name, kind,
+// is_optional, week/day_position) so the LLM doesn't waste output tokens
+// echoing back ground truth from the user prompt. Day-position mismatches
+// are caught earlier in the segmenter, so the LLM has no cross-check role.
 export const parsedDayLLMSchema = parsedDaySchema.omit({
   raw_text: true,
   cms_source_id: true,
+  scheduled_on: true,
+  position: true,
+  display_name: true,
+  kind: true,
+  is_optional: true,
+  week_position: true,
+  day_position: true,
 });
 
 export type ParsedDayLLM = z.infer<typeof parsedDayLLMSchema>;
@@ -313,8 +323,22 @@ export const parseWarningSchema = z.object({
 
 export type ParseWarning = z.infer<typeof parseWarningSchema>;
 
+export const modelSpecSchema = z.object({
+  provider: z.enum(['openai', 'anthropic']),
+  model: z.string(),
+  reasoning_effort: z
+    .enum(['minimal', 'low', 'medium', 'high'])
+    .nullable()
+    .optional(),
+});
+
+export type ModelSpec = z.infer<typeof modelSpecSchema>;
+
 export const parseMetricsSchema = z.object({
   model: z.string(),
+  // ModelSpec the run actually used. Optional for backwards compat with older
+  // payloads (pre-multi-provider); new runs always populate it.
+  model_spec: modelSpecSchema.optional(),
   temperature: z.number(),
   extraction_ms: z.number(),
   segmentation_ms: z.number(),

@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import type { Logger } from 'winston';
 
 import type {
+  ModelSpec,
   ParseMetrics,
   ParseWarning,
   ParsedDay,
@@ -23,12 +23,14 @@ export interface UploadInput {
   buffer: Buffer;
   dryRun: boolean;
   requestId: string;
+  // When omitted, uses the env-driven default ModelSpec via DayParser. Reparse
+  // calls (POST /upload-jobs/:id/reparse-as) supply an explicit one.
+  modelSpec?: ModelSpec;
 }
 
 @Injectable()
 export class TrainingWeeksService {
   constructor(
-    private readonly configService: ConfigService,
     private readonly pdfText: PdfTextService,
     private readonly dayParser: DayParser,
     private readonly persister: TrainingWeekPersister,
@@ -79,6 +81,34 @@ export class TrainingWeeksService {
     });
 
     return { jobId: job.id };
+  }
+
+  // Spawns a NEW upload job from an existing job's PDF, using a different
+  // ModelSpec. This is what powers the admin "Reparse with…" picker — the
+  // original job is left untouched so two runs can be compared side-by-side.
+  // Throws when the source PDF was cleaned up from disk.
+  async reparseAs(
+    sourceJobId: string,
+    modelSpec: ModelSpec,
+    requestId: string,
+  ): Promise<{ jobId: string }> {
+    const source = await this.uploadJobs.get(sourceJobId);
+    if (!source) {
+      throw new Error(`upload job ${sourceJobId} not found`);
+    }
+    const buffer = await this.uploadJobs.loadPdf(sourceJobId);
+    if (!buffer) {
+      throw new Error(
+        `pdf for upload job ${sourceJobId} is no longer on disk; re-upload required`,
+      );
+    }
+    return this.enqueue({
+      filename: source.filename,
+      buffer,
+      dryRun: false,
+      requestId,
+      modelSpec,
+    });
   }
 
   // Wipes every microcycle for a calendar week. Source upload-jobs are kept
@@ -229,6 +259,11 @@ export class TrainingWeeksService {
     const newWarnings: ParseWarning[] = [];
     const succeededLocators = new Set<string>();
 
+    // Retry reuses the original job's modelSpec (we want apples-to-apples on
+    // a re-attempt). Falls back to env default if the original predates the
+    // multi-provider schema.
+    const modelSpec =
+      existing?.parse_metrics?.model_spec ?? this.dayParser.defaultModelSpec();
     const batch = await this.dayParser.parseAll(
       retryChunks.map((c) => c.chunk),
       filename,
@@ -254,6 +289,7 @@ export class TrainingWeeksService {
           });
         }
       },
+      modelSpec,
     );
 
     for (const o of batch.outcomes) newWarnings.push(...o.warnings);
@@ -280,8 +316,8 @@ export class TrainingWeeksService {
       document: existing?.document ?? null,
       parse_warnings: finalWarnings,
       parse_metrics: {
-        model:
-          this.configService.get<string>('openai.parseModel') ?? 'gpt-4o-2024-11-20',
+        model: modelSpec.model,
+        model_spec: modelSpec,
         temperature: 0,
         extraction_ms: existing?.parse_metrics?.extraction_ms ?? 0,
         segmentation_ms: existing?.parse_metrics?.segmentation_ms ?? 0,
@@ -425,6 +461,7 @@ export class TrainingWeeksService {
     // Stage 3: per-day LLM parse + incremental persistence. Each parse that
     // succeeds writes its sections immediately so partial uploads remain
     // queryable from the relational tables.
+    const modelSpec = input.modelSpec ?? this.dayParser.defaultModelSpec();
     const batch = await this.dayParser.parseAll(
       segResult.chunks,
       filename,
@@ -449,6 +486,7 @@ export class TrainingWeeksService {
           });
         }
       },
+      modelSpec,
     );
     for (const o of batch.outcomes) {
       warnings.push(...o.warnings);
@@ -465,8 +503,8 @@ export class TrainingWeeksService {
     });
 
     const metrics: ParseMetrics = {
-      model:
-        this.configService.get<string>('openai.parseModel') ?? 'gpt-4o-2024-11-20',
+      model: modelSpec.model,
+      model_spec: modelSpec,
       temperature: 0,
       extraction_ms: extractionMs,
       segmentation_ms: segmentationMs,

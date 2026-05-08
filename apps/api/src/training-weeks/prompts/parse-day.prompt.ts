@@ -136,7 +136,9 @@ Output rules (read carefully):
    AND emit a coaching_notes[] entry with kind="focus".
 6. For "Short on Time? Remove X" hints, set short_on_time_directive on the section
    AND group.short_on_time_remove=true on the targeted group.
-7. raw_text is set by the orchestrator — do not include it.
+7. The orchestrator patches in scheduled_on, position, display_name, kind,
+   is_optional, week_position, day_position, raw_text, and cms_source_id —
+   these are NOT in the schema you fill. Focus only on sections + coaching_notes.
 
 ${SECTION_KIND_GUIDANCE}
 
@@ -150,21 +152,16 @@ ${MOVEMENT_NAME_GUIDANCE}
 `;
 
 export function buildUserPrompt(chunk: DayChunk): string {
+  // Metadata is *context* for interpreting the raw text (e.g. knowing it's a
+  // workout vs lesson, what family/cadence). The orchestrator patches all of
+  // it onto the resulting day, so the LLM never needs to echo it back.
   return [
-    `# Day metadata (use as ground truth for these fields)`,
-    `track_code: ${chunk.trackCode}`,
-    `track_display_name: ${chunk.trackHeading}`,
-    `family: ${chunk.family}`,
-    `cadence: ${chunk.cadence ?? 'null'}`,
-    `scheduled_on: ${chunk.scheduledOn}`,
-    `position: ${chunk.position}  (1=Mon..7=Sun, derived from the date)`,
-    `kind: ${chunk.kind}`,
-    `is_optional: ${chunk.isOptional}`,
-    chunk.weekPosition != null
-      ? `week_position (from "Week N Day M" line): ${chunk.weekPosition}`
-      : '',
-    chunk.dayPosition != null
-      ? `day_position (from "Week N Day M" line): ${chunk.dayPosition}`
+    `# Day context`,
+    `track: ${chunk.trackHeading} (${chunk.trackCode}; family=${chunk.family}, cadence=${chunk.cadence ?? '-'})`,
+    `date: ${chunk.scheduledOn} (position=${chunk.position}, 1=Mon..7=Sun)`,
+    `kind: ${chunk.kind}${chunk.isOptional ? ' (optional)' : ''}`,
+    chunk.weekPosition != null && chunk.dayPosition != null
+      ? `week_position=${chunk.weekPosition} day_position=${chunk.dayPosition}`
       : '',
     ``,
     `# Day raw text (parse this into sections/groups/exercises/sets)`,

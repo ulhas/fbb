@@ -80,6 +80,29 @@ export function UploadJobsTable({
         ),
       },
       {
+        id: 'model',
+        accessorFn: (r) =>
+          r.model_spec
+            ? `${r.model_spec.provider}/${r.model_spec.model}`
+            : '',
+        header: 'Model',
+        cell: ({ row }) => {
+          const spec = row.original.model_spec
+          if (!spec) return <span className="text-[12px] text-ink-muted">—</span>
+          // Compress provider/model into a tight pill. Effort sits next to it
+          // when it applies (OpenAI reasoning models).
+          return (
+            <div className="flex flex-col gap-0.5">
+              <span className="font-mono text-[11px] text-ink">{spec.model}</span>
+              <span className="text-[10px] text-ink-muted">
+                {spec.provider}
+                {spec.reasoning_effort ? ` · ${spec.reasoning_effort}` : ''}
+              </span>
+            </div>
+          )
+        },
+      },
+      {
         id: 'week_starts_on',
         accessorKey: 'week_starts_on',
         header: 'Week',

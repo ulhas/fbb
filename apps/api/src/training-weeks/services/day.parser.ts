@@ -1,6 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createOpenAI } from '@ai-sdk/openai';
 import { Output, generateText, NoObjectGeneratedError } from 'ai';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import pLimit from 'p-limit';
@@ -8,11 +7,13 @@ import type { Logger } from 'winston';
 
 import {
   parsedDayLLMSchema,
+  type ModelSpec,
   type ParsedDay,
   type ParsedDayLLM,
   type ParseWarning,
 } from '../schemas/parsed-document.schema';
 import { SYSTEM_PROMPT, buildUserPrompt } from '../prompts/parse-day.prompt';
+import { DEFAULT_MODEL_SPEC, resolveModel, type ResolvedModel } from './models';
 import type { DayChunk } from './document.segmenter';
 
 export interface DayParseOutcome {
@@ -52,6 +53,7 @@ export class DayParser {
       chunkIndex: number,
       outcome: DayParseOutcome,
     ) => Promise<void>,
+    modelSpec: ModelSpec = this.defaultModelSpec(),
   ): Promise<DayParseBatchResult> {
     const concurrency = this.configService.get<number>('parser.concurrency') ?? 8;
     const limit = pLimit(concurrency);
@@ -64,7 +66,13 @@ export class DayParser {
     const outcomes = await Promise.all(
       chunks.map((chunk, i) =>
         limit(async () => {
-          const outcome = await this.parseOne(chunk, sourceFilename, i, requestId);
+          const outcome = await this.parseOne(
+            chunk,
+            sourceFilename,
+            i,
+            requestId,
+            modelSpec,
+          );
           if (onDayComplete) {
             try {
               await onDayComplete(i, outcome);
@@ -99,11 +107,30 @@ export class DayParser {
     };
   }
 
+  // Reads the legacy openai.* config (parseModel + reasoningEffort) so the
+  // existing happy path (POST /upload-jobs without a model spec) still picks
+  // up env-driven overrides. New callers (POST /upload-jobs/:id/reparse-as)
+  // pass an explicit ModelSpec instead.
+  defaultModelSpec(): ModelSpec {
+    const model = this.configService.get<string>('openai.parseModel');
+    const reasoningEffort = this.configService.get<string>(
+      'openai.reasoningEffort',
+    );
+    if (!model) return DEFAULT_MODEL_SPEC;
+    return {
+      provider: 'openai',
+      model,
+      reasoning_effort:
+        (reasoningEffort as ModelSpec['reasoning_effort']) ?? null,
+    };
+  }
+
   private async parseOne(
     chunk: DayChunk,
     sourceFilename: string,
     index: number,
-    requestId?: string,
+    requestId: string | undefined,
+    modelSpec: ModelSpec,
   ): Promise<DayParseOutcome> {
     const locator = `${chunk.trackCode}/${chunk.scheduledOn}`;
     const startedAt = Date.now();
@@ -142,17 +169,24 @@ export class DayParser {
       };
     }
 
-    const apiKey = this.configService.get<string>('openai.apiKey');
-    const model = this.configService.get<string>('openai.parseModel') ?? 'gpt-4o-2024-11-20';
-    const reasoningEffort =
-      this.configService.get<string>('openai.reasoningEffort') ?? 'high';
     const maxRetries = this.configService.get<number>('parser.maxRetries') ?? 2;
+    const warnings: ParseWarning[] = [];
 
-    if (!apiKey) {
+    let resolved: ResolvedModel;
+    try {
+      resolved = resolveModel({
+        spec: modelSpec,
+        openaiApiKey: this.configService.get<string>('openai.apiKey'),
+        anthropicApiKey: this.configService.get<string>('anthropic.apiKey'),
+      });
+    } catch (err) {
       this.logger.error({
-        msg: 'day.parse.missing_api_key',
+        msg: 'day.parse.model_resolve_failed',
         requestId,
         locator,
+        provider: modelSpec.provider,
+        model: modelSpec.model,
+        error: err instanceof Error ? err.message : String(err),
       });
       return {
         day: null,
@@ -160,8 +194,8 @@ export class DayParser {
           {
             scope: 'day',
             locator,
-            code: 'openai_api_key_missing',
-            detail: 'OPENAI_API_KEY is not configured; cannot parse day',
+            code: 'model_resolve_failed',
+            detail: err instanceof Error ? err.message : String(err),
           },
         ],
         metrics: {
@@ -173,8 +207,6 @@ export class DayParser {
       };
     }
 
-    const openai = createOpenAI({ apiKey });
-    const warnings: ParseWarning[] = [];
     let llm: ParsedDayLLM | null = null;
     let tokensInput = 0;
     let tokensOutput = 0;
@@ -186,27 +218,20 @@ export class DayParser {
       index,
       kind: chunk.kind,
       rawTextChars: chunk.rawText.length,
-      model,
-      reasoningEffort,
+      provider: modelSpec.provider,
+      model: modelSpec.model,
+      reasoningEffort: modelSpec.reasoning_effort,
     });
 
     try {
-      // Reasoning models (gpt-5+) ignore `temperature` and warn when one is
-      // passed. Only set it when the user has overridden the default model to
-      // a non-reasoning variant.
-      const isReasoning = /^(gpt-5|o\d)/i.test(model);
       const result = await generateText({
-        model: openai(model),
+        model: resolved.model,
         output: Output.object({ schema: parsedDayLLMSchema }),
         system: SYSTEM_PROMPT,
         prompt: buildUserPrompt(chunk),
-        ...(isReasoning ? {} : { temperature: 0 }),
+        ...(resolved.applyTemperatureZero ? { temperature: 0 } : {}),
         maxRetries,
-        providerOptions: {
-          openai: {
-            reasoningEffort,
-          },
-        },
+        providerOptions: resolved.providerOptions,
       });
       llm = result.output as ParsedDayLLM;
       tokensInput = result.usage?.inputTokens ?? 0;
@@ -280,18 +305,18 @@ export class DayParser {
       };
     }
 
-    // Cross-check: calendar position vs week-line day_position.
-    if (llm.day_position != null && llm.day_position !== chunk.position) {
-      warnings.push({
-        scope: 'day',
-        locator,
-        code: 'day_position_mismatch',
-        detail: `calendar position=${chunk.position} but llm parsed day_position=${llm.day_position}`,
-      });
-    }
-
+    // Patch in everything the segmenter already knows. Day-position mismatch
+    // is raised at segment time (see document.segmenter.ts), so we don't need
+    // to ask the LLM to echo it back for cross-check.
     const day: ParsedDay = {
       ...llm,
+      scheduled_on: chunk.scheduledOn,
+      position: chunk.position,
+      display_name: chunk.displayName,
+      kind: chunk.kind,
+      is_optional: chunk.isOptional,
+      week_position: chunk.weekPosition,
+      day_position: chunk.dayPosition,
       raw_text: chunk.rawText,
       cms_source_id: this.cmsSourceId(sourceFilename, chunk),
     };

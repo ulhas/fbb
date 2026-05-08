@@ -27,6 +27,11 @@ import { randomUUID } from 'node:crypto';
 import { AdminGuard } from '../training-weeks/admin.guard';
 import type { UploadResponseDto } from '../training-weeks/dto/parse-result.dto';
 import type { UploadJobStatus } from '../database/schema/upload-jobs';
+import {
+  MODEL_CATALOG,
+  type ModelCatalogEntry,
+} from '../training-weeks/services/models';
+import type { ModelSpec } from '../training-weeks/schemas/parsed-document.schema';
 import { TrainingWeeksService } from '../training-weeks/services/training-weeks.service';
 import {
   type UploadJobDetail,
@@ -71,6 +76,47 @@ export class UploadJobsController {
   @Get()
   async list(): Promise<UploadJobSummary[]> {
     return this.jobs.listSummaries();
+  }
+
+  // Catalog of provider+model combinations the parser can route to. Powers
+  // the admin "Reparse with…" picker. Static (in-process) — no IO.
+  @Get('models')
+  models(): { models: ModelCatalogEntry[] } {
+    return { models: MODEL_CATALOG };
+  }
+
+  // Spawns a NEW upload job from this job's stored PDF using a different
+  // ModelSpec. The two jobs (source + reparse) live independently so the
+  // admin can compare warnings/tokens/parse output. 410 if the PDF was
+  // cleaned up; 404 if the source job doesn't exist.
+  @Post(':id/reparse-as')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async reparseAs(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: { model_spec?: ModelSpec } | undefined,
+    @Req() req: Request,
+  ): Promise<{ job_id: string; status: UploadJobStatus }> {
+    const spec = body?.model_spec;
+    if (!spec || !spec.provider || !spec.model) {
+      throw new BadRequestException(
+        'model_spec is required and must include provider + model',
+      );
+    }
+    if (spec.provider !== 'openai' && spec.provider !== 'anthropic') {
+      throw new BadRequestException(
+        `unknown provider: ${spec.provider}; expected one of openai|anthropic`,
+      );
+    }
+    try {
+      const requestId = req.requestId ?? randomUUID();
+      const { jobId } = await this.service.reparseAs(id, spec, requestId);
+      return { job_id: jobId, status: 'queued' };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('not found')) throw new NotFoundException(message);
+      if (message.includes('re-upload required')) throw new GoneException(message);
+      throw err;
+    }
   }
 
   // Full detail. For non-`succeeded` jobs `document` is null and the client

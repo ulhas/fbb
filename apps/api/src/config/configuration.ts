@@ -9,10 +9,14 @@ export default () => ({
     apiKey: process.env.OPENAI_API_KEY,
     parseModel: process.env.OPENAI_PARSE_MODEL ?? 'gpt-5.5-2026-04-23',
     // GPT-5 family reasoning effort. Values per OpenAI docs:
-    // 'minimal' | 'low' | 'medium' | 'high'. Defaulting to 'high' for the
-    // training-week parse — we'd rather pay latency than hand-fix mis-parsed
-    // sets. Override per-environment via OPENAI_REASONING_EFFORT.
-    reasoningEffort: process.env.OPENAI_REASONING_EFFORT ?? 'high',
+    // 'minimal' | 'low' | 'medium' | 'high'. Defaulting to 'medium' — most
+    // per-day parses are mechanical pattern matching, not chain-of-thought
+    // problems, and reasoning tokens are billed as output. Bump to 'high' if
+    // a particular run benefits from extra deliberation.
+    reasoningEffort: process.env.OPENAI_REASONING_EFFORT ?? 'medium',
+  },
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY,
   },
   parser: {
     // Sample PDFs are <1MB; 10MB cap leaves ample headroom for bulkier weeks.

@@ -8,13 +8,54 @@
 // round-trips. The poll loop keeps reopening until the signal aborts.
 
 import type {
+  ModelSpec,
   UploadJobDetail,
   UploadJobStatus,
   UploadJobSummary,
   UploadResponse,
 } from '@fbb/types'
 
-export type { UploadJobDetail, UploadJobStatus, UploadJobSummary, UploadResponse }
+export type {
+  ModelSpec,
+  UploadJobDetail,
+  UploadJobStatus,
+  UploadJobSummary,
+  UploadResponse,
+}
+
+// Mirrors ModelCatalogEntry from the api. Picker UI keys off
+// supports_reasoning_effort to decide whether to show the effort dropdown.
+export interface ModelCatalogEntry {
+  spec: ModelSpec
+  display_name: string
+  supports_reasoning_effort: boolean
+  supports_temperature: boolean
+}
+
+export async function listModelCatalog(
+  signal?: AbortSignal,
+): Promise<ModelCatalogEntry[]> {
+  const res = await fetch('/api/v1/upload-jobs/models', { signal })
+  if (!res.ok) throw await readUploadError(res)
+  const body = (await res.json()) as { models: ModelCatalogEntry[] }
+  return body.models
+}
+
+export async function reparseUploadJobAs(
+  jobId: string,
+  modelSpec: ModelSpec,
+): Promise<{ job_id: string; status: UploadJobStatus }> {
+  const res = await fetch(
+    `/api/v1/upload-jobs/${encodeURIComponent(jobId)}/reparse-as`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model_spec: modelSpec }),
+    },
+  )
+  if (!res.ok) throw await readUploadError(res)
+  return (await res.json()) as { job_id: string; status: UploadJobStatus }
+}
 
 export async function listUploadJobs(
   signal?: AbortSignal,

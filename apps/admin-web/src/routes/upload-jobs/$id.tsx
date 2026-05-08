@@ -1,13 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 
-import { uploadJobPdfUrl } from '../../api/upload-jobs'
+import {
+  listModelCatalog,
+  reparseUploadJobAs,
+  uploadJobPdfUrl,
+  type ModelCatalogEntry,
+} from '../../api/upload-jobs'
 import { Badge } from '../../components/ui/Badge'
-import { useUploadJob } from '../../hooks/useUploadJobs'
-import type { ParseMetrics, ParseWarning, UploadJobStatus } from '@fbb/types'
+import { Button } from '../../components/ui/Button'
+import { uploadJobsKeys, useUploadJob } from '../../hooks/useUploadJobs'
+import type {
+  ModelSpec,
+  ParseMetrics,
+  ParseWarning,
+  ReasoningEffort,
+  UploadJobStatus,
+} from '@fbb/types'
 
 // Bundle the worker through Vite so we don't ship a public/ asset. The worker
 // must match the pdfjs-dist version that react-pdf re-exports as `pdfjs`,
@@ -35,6 +48,7 @@ const STATUS_TONE: Record<
 function UploadJobDetailPage() {
   const { id } = Route.useParams()
   const { record, loading, error } = useUploadJob(id)
+  const [reparseOpen, setReparseOpen] = useState(false)
 
   if (loading) {
     return (
@@ -90,6 +104,14 @@ function UploadJobDetailPage() {
           {record.parse_warnings.length > 0 ? (
             <Badge tone="warning">⚠ {record.parse_warnings.length} warnings</Badge>
           ) : null}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setReparseOpen(true)}
+            disabled={record.status === 'queued' || record.status === 'running'}
+          >
+            ↻ Reparse with…
+          </Button>
         </div>
       </div>
 
@@ -108,9 +130,169 @@ function UploadJobDetailPage() {
           finishedAt={record.finished_at}
           dryRunOnly={record.dry_run_only}
           metrics={record.parse_metrics}
+          sourceJobId={record.id}
         />
       </div>
+
+      {reparseOpen ? (
+        <ReparseModal
+          sourceJobId={record.id}
+          currentSpec={record.parse_metrics?.model_spec ?? null}
+          onClose={() => setReparseOpen(false)}
+        />
+      ) : null}
     </>
+  )
+}
+
+function ReparseModal({
+  sourceJobId,
+  currentSpec,
+  onClose,
+}: {
+  sourceJobId: string
+  currentSpec: ModelSpec | null
+  onClose: () => void
+}) {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const catalogQuery = useQuery({
+    queryKey: ['upload-jobs', 'models'],
+    queryFn: ({ signal }) => listModelCatalog(signal),
+  })
+
+  // Pre-select the most recently used spec when possible, otherwise the
+  // first catalog entry. Effort defaults to whatever the picked entry has on
+  // its catalog default.
+  const initialKey = (entry: ModelCatalogEntry) =>
+    `${entry.spec.provider}/${entry.spec.model}`
+  const [selectedKey, setSelectedKey] = useState<string | null>(
+    currentSpec ? `${currentSpec.provider}/${currentSpec.model}` : null,
+  )
+  const [effort, setEffort] = useState<ReasoningEffort | null>(
+    currentSpec?.reasoning_effort ?? null,
+  )
+
+  const catalog = catalogQuery.data ?? []
+  const selected =
+    catalog.find((e) => initialKey(e) === selectedKey) ?? catalog[0] ?? null
+
+  const mutation = useMutation({
+    mutationFn: (spec: ModelSpec) => reparseUploadJobAs(sourceJobId, spec),
+    onSuccess: ({ job_id }) => {
+      void queryClient.invalidateQueries({ queryKey: uploadJobsKeys.list() })
+      onClose()
+      void navigate({ to: '/upload-jobs/$id', params: { id: job_id } })
+    },
+  })
+
+  const submit = () => {
+    if (!selected) return
+    const spec: ModelSpec = {
+      provider: selected.spec.provider,
+      model: selected.spec.model,
+      reasoning_effort: selected.supports_reasoning_effort
+        ? effort ?? selected.spec.reasoning_effort ?? 'medium'
+        : null,
+    }
+    mutation.mutate(spec)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className="w-full max-w-md rounded-[var(--radius-card)] bg-card p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-lg font-bold text-ink">Reparse with another model</h2>
+        <p className="mt-1 text-sm text-ink-muted">
+          Spawns a new upload job from this PDF using a different provider /
+          model. Both runs stay around so you can compare warnings, tokens,
+          and parse output.
+        </p>
+
+        {catalogQuery.isLoading ? (
+          <p className="mt-4 text-sm text-ink-muted">Loading models…</p>
+        ) : catalog.length === 0 ? (
+          <p className="mt-4 text-sm text-danger">
+            No models available. Check API keys.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            <label className="block text-sm">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                Model
+              </span>
+              <select
+                value={selected ? initialKey(selected) : ''}
+                onChange={(e) => setSelectedKey(e.target.value)}
+                className="w-full cursor-pointer rounded-[var(--radius-button)] border border-divider bg-card px-3 py-2 text-sm text-ink focus:border-fbb-orange focus:outline-none"
+              >
+                {catalog.map((e) => (
+                  <option key={initialKey(e)} value={initialKey(e)}>
+                    {e.display_name} ({e.spec.provider}/{e.spec.model})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {selected?.supports_reasoning_effort ? (
+              <label className="block text-sm">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                  Reasoning effort
+                </span>
+                <select
+                  value={effort ?? selected.spec.reasoning_effort ?? 'medium'}
+                  onChange={(e) =>
+                    setEffort(e.target.value as ReasoningEffort)
+                  }
+                  className="w-full cursor-pointer rounded-[var(--radius-button)] border border-divider bg-card px-3 py-2 text-sm text-ink focus:border-fbb-orange focus:outline-none"
+                >
+                  <option value="minimal">minimal — cheapest, fastest</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium — balanced</option>
+                  <option value="high">high — slowest, most accurate</option>
+                </select>
+              </label>
+            ) : (
+              <p className="text-[12px] text-ink-muted">
+                Reasoning effort doesn't apply to this model.
+              </p>
+            )}
+          </div>
+        )}
+
+        {mutation.isError ? (
+          <p className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+            {mutation.error instanceof Error
+              ? mutation.error.message
+              : 'Reparse failed'}
+          </p>
+        ) : null}
+
+        <div className="mt-6 flex items-center justify-end gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onClose}
+            disabled={mutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={submit}
+            disabled={!selected || mutation.isPending}
+          >
+            {mutation.isPending ? 'Starting…' : 'Reparse'}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -185,6 +367,7 @@ function SummaryPanel({
   finishedAt,
   dryRunOnly,
   metrics,
+  sourceJobId,
 }: {
   warnings: ParseWarning[]
   weekStartsOn: string | null
@@ -192,6 +375,7 @@ function SummaryPanel({
   finishedAt: string | null
   dryRunOnly: boolean
   metrics: ParseMetrics | null
+  sourceJobId: string
 }) {
   return (
     <aside className="flex flex-col gap-4">
@@ -200,6 +384,24 @@ function SummaryPanel({
           Summary
         </h2>
         <dl className="mt-3 space-y-2 text-sm">
+          {metrics?.model_spec ? (
+            <Row
+              label="Model"
+              value={
+                <span className="flex flex-col items-end">
+                  <span className="font-mono text-[12px]">
+                    {metrics.model_spec.model}
+                  </span>
+                  <span className="text-[11px] text-ink-muted">
+                    {metrics.model_spec.provider}
+                    {metrics.model_spec.reasoning_effort
+                      ? ` · ${metrics.model_spec.reasoning_effort}`
+                      : ''}
+                  </span>
+                </span>
+              }
+            />
+          ) : null}
           <Row label="Uploaded" value={new Date(uploadedAt).toLocaleString()} />
           <Row
             label="Finished"
@@ -243,6 +445,15 @@ function SummaryPanel({
             <Row label="Dry run" value={<Badge tone="neutral">segmenter only</Badge>} />
           ) : null}
         </dl>
+        <div className="mt-3 border-t border-divider pt-3">
+          <Link
+            to="/upload-jobs/compare"
+            search={{ a: sourceJobId }}
+            className="text-[12px] font-semibold text-fbb-orange hover:text-fbb-orange-dark"
+          >
+            Compare with another run →
+          </Link>
+        </div>
       </section>
 
       <section className="rounded-[var(--radius-card)] bg-card p-4 shadow-[0_2px_8px_rgba(15,23,42,0.06)]">

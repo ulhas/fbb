@@ -20,6 +20,7 @@ import {
   uploadJobs,
 } from '../../database/schema/upload-jobs';
 import type { UploadResponseDto } from '../dto/parse-result.dto';
+import type { ModelSpec } from '../schemas/parsed-document.schema';
 
 // Single-process completion notifier. Long-poll handlers subscribe on
 // `done:<jobId>` and the runner emits on terminal status. Entirely in-memory
@@ -173,6 +174,7 @@ export class UploadJobsService implements OnApplicationBootstrap {
         tokensTotal: sql<number>`coalesce((${uploadJobs.resultPayload}->'parse_metrics'->>'tokens_total')::int, 0)`,
         tokensInputTotal: sql<number>`coalesce((${uploadJobs.resultPayload}->'parse_metrics'->>'tokens_input_total')::int, 0)`,
         tokensOutputTotal: sql<number>`coalesce((${uploadJobs.resultPayload}->'parse_metrics'->>'tokens_output_total')::int, 0)`,
+        modelSpec: sql<unknown>`${uploadJobs.resultPayload}->'parse_metrics'->'model_spec'`,
       })
       .from(uploadJobs)
       .orderBy(desc(uploadJobs.createdAt))
@@ -189,6 +191,7 @@ export class UploadJobsService implements OnApplicationBootstrap {
       tokens_total: r.tokensTotal,
       tokens_input_total: r.tokensInputTotal,
       tokens_output_total: r.tokensOutputTotal,
+      model_spec: (r.modelSpec as ModelSpec | null) ?? null,
       uploaded_at: r.createdAt.toISOString(),
       finished_at: r.finishedAt?.toISOString() ?? null,
       error: r.errorMessage,
@@ -284,6 +287,9 @@ export interface UploadJobSummary {
   day_count: number;
   warning_count: number;
   tokens_total: number;
+  tokens_input_total: number;
+  tokens_output_total: number;
+  model_spec: ModelSpec | null;
   uploaded_at: string;
   finished_at: string | null;
   error: string | null;

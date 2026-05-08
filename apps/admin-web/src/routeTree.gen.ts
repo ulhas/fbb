@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as UsersIndexRouteImport } from './routes/users/index'
 import { Route as UploadJobsIndexRouteImport } from './routes/upload-jobs/index'
 import { Route as TrainingWeeksIndexRouteImport } from './routes/training-weeks/index'
+import { Route as UploadJobsCompareRouteImport } from './routes/upload-jobs/compare'
 import { Route as UploadJobsIdRouteImport } from './routes/upload-jobs/$id'
 import { Route as TrainingWeeksWeekStartsOnRouteImport } from './routes/training-weeks/$weekStartsOn'
 
@@ -36,6 +37,11 @@ const TrainingWeeksIndexRoute = TrainingWeeksIndexRouteImport.update({
   path: '/training-weeks/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UploadJobsCompareRoute = UploadJobsCompareRouteImport.update({
+  id: '/upload-jobs/compare',
+  path: '/upload-jobs/compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UploadJobsIdRoute = UploadJobsIdRouteImport.update({
   id: '/upload-jobs/$id',
   path: '/upload-jobs/$id',
@@ -52,6 +58,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/training-weeks/$weekStartsOn': typeof TrainingWeeksWeekStartsOnRoute
   '/upload-jobs/$id': typeof UploadJobsIdRoute
+  '/upload-jobs/compare': typeof UploadJobsCompareRoute
   '/training-weeks/': typeof TrainingWeeksIndexRoute
   '/upload-jobs/': typeof UploadJobsIndexRoute
   '/users/': typeof UsersIndexRoute
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/training-weeks/$weekStartsOn': typeof TrainingWeeksWeekStartsOnRoute
   '/upload-jobs/$id': typeof UploadJobsIdRoute
+  '/upload-jobs/compare': typeof UploadJobsCompareRoute
   '/training-weeks': typeof TrainingWeeksIndexRoute
   '/upload-jobs': typeof UploadJobsIndexRoute
   '/users': typeof UsersIndexRoute
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/training-weeks/$weekStartsOn': typeof TrainingWeeksWeekStartsOnRoute
   '/upload-jobs/$id': typeof UploadJobsIdRoute
+  '/upload-jobs/compare': typeof UploadJobsCompareRoute
   '/training-weeks/': typeof TrainingWeeksIndexRoute
   '/upload-jobs/': typeof UploadJobsIndexRoute
   '/users/': typeof UsersIndexRoute
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
     | '/'
     | '/training-weeks/$weekStartsOn'
     | '/upload-jobs/$id'
+    | '/upload-jobs/compare'
     | '/training-weeks/'
     | '/upload-jobs/'
     | '/users/'
@@ -87,6 +97,7 @@ export interface FileRouteTypes {
     | '/'
     | '/training-weeks/$weekStartsOn'
     | '/upload-jobs/$id'
+    | '/upload-jobs/compare'
     | '/training-weeks'
     | '/upload-jobs'
     | '/users'
@@ -95,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/training-weeks/$weekStartsOn'
     | '/upload-jobs/$id'
+    | '/upload-jobs/compare'
     | '/training-weeks/'
     | '/upload-jobs/'
     | '/users/'
@@ -104,6 +116,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   TrainingWeeksWeekStartsOnRoute: typeof TrainingWeeksWeekStartsOnRoute
   UploadJobsIdRoute: typeof UploadJobsIdRoute
+  UploadJobsCompareRoute: typeof UploadJobsCompareRoute
   TrainingWeeksIndexRoute: typeof TrainingWeeksIndexRoute
   UploadJobsIndexRoute: typeof UploadJobsIndexRoute
   UsersIndexRoute: typeof UsersIndexRoute
@@ -139,6 +152,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrainingWeeksIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/upload-jobs/compare': {
+      id: '/upload-jobs/compare'
+      path: '/upload-jobs/compare'
+      fullPath: '/upload-jobs/compare'
+      preLoaderRoute: typeof UploadJobsCompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/upload-jobs/$id': {
       id: '/upload-jobs/$id'
       path: '/upload-jobs/$id'
@@ -160,6 +180,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   TrainingWeeksWeekStartsOnRoute: TrainingWeeksWeekStartsOnRoute,
   UploadJobsIdRoute: UploadJobsIdRoute,
+  UploadJobsCompareRoute: UploadJobsCompareRoute,
   TrainingWeeksIndexRoute: TrainingWeeksIndexRoute,
   UploadJobsIndexRoute: UploadJobsIndexRoute,
   UsersIndexRoute: UsersIndexRoute,
