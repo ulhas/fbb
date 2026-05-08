@@ -6,16 +6,51 @@ import {
 } from '../../database/schema/enums';
 import type { DayChunk } from '../services/document.segmenter';
 
-// The mapping tables here close the gap between Marcus's freeform section
-// titles and the constrained `sections.kind` / `prescription_mode` enums.
-// Without this guidance the LLM tends to invent values like `single_leg_conditioning`
-// that the SQL CHECK constraint then rejects.
+// CACHE INVARIANT: SYSTEM_PROMPT must be byte-stable across every call so
+// providers can cache the prefix.
+//   - System prompt: 100% static reference document. Built once at module
+//     load from module-level constants + enum lists. Nothing about a
+//     specific PDF, day, track, or call is allowed in here.
+//   - User prompt: ALL per-day data lives here (track metadata, date, kind,
+//     and the raw PDF text for that day).
+//
+// If you find yourself wanting to interpolate `chunk.something` into the
+// system prompt, restructure: either lift the rule to be universal, or move
+// the dynamic part to user prompt. Caching savings depend on this being
+// strict — even a single varying byte invalidates the cached prefix.
 
-const SECTION_KIND_GUIDANCE = `
+// -- Static reference blocks ------------------------------------------------
+
+const ROLE = `You are a structured-data extractor for FBB Persist programming PDFs.
+Your only job is to read the day's raw text under "# Day raw text" in the
+user message and emit JSON that matches the supplied schema EXACTLY. The
+schema mirrors a Postgres content schema; mismatches will be rejected.`;
+
+const OUTPUT_RULES = `# Output rules
+1. EVERY enum field must be one of the listed values — never invent new ones.
+2. tempo strings are 4 characters in [0-9XA] only. If the source text is
+   malformed, leave tempo=null and put the verbatim string in rpe_text or notes.
+3. RPE numeric fields are 1..10. "RPE 9-10" → rpe_min=9, rpe_max=10.
+4. min/max range fields require min ≤ max.
+5. For "Loading Note:" / "Effort Note:" prose, attach to the group's
+   loading_note / effort_note. For "A) Daily Focus Note:" prose, populate
+   sections[0].daily_focus_note AND emit a coaching_notes[] entry with
+   kind="focus".
+6. For "Short on Time? Remove X" hints, set short_on_time_directive on the
+   section AND group.short_on_time_remove=true on the targeted group.
+7. The orchestrator patches in scheduled_on, position, display_name, kind,
+   is_optional, week_position, day_position, raw_text, and cms_source_id —
+   these are NOT in the schema you fill. Focus only on sections +
+   coaching_notes.`;
+
+// Mapping tables close the gap between Marcus's freeform PDF copy and the
+// constrained Postgres enums. Without these the LLM tends to invent values
+// like `single_leg_conditioning` that the SQL CHECK constraint then rejects.
+
+const SECTION_KIND_GUIDANCE = `# Section kind mapping
 Map every section header to ONE of these section.kind values:
 ${SECTION_KINDS.join(', ')}.
 
-Mapping rules:
 - "Daily Focus Note(s)"                          → focus_note
 - "Warmup"                                       → warmup
 - "Strength Intensity 1/2"                       → strength_intensity
@@ -38,14 +73,13 @@ Mapping rules:
 - "Active Recovery Work" / "OPTIONAL - Active Recovery"
                                                  → active_recovery
 - Sunday Marcus letter day                       → lesson
-The verbatim title from the PDF goes into display_name.
-`.trim();
 
-const PRESCRIPTION_MODE_GUIDANCE = `
+The verbatim title from the PDF goes into display_name.`;
+
+const PRESCRIPTION_MODE_GUIDANCE = `# Prescription mode mapping
 Map every group's timing pattern to ONE prescription_mode:
 ${PRESCRIPTION_MODES.join(', ')}.
 
-Mapping rules:
 - "3 Working Sets; rest 2-3 min"               → straight_sets
 - "Every 2:30 x 4 Working Sets"                → every_x_minutes (interval_seconds=150)
 - "Every 60 sec x 9-12 sets"                   → every_x_minutes
@@ -62,11 +96,10 @@ Mapping rules:
 - "12mins Continuous Effort, 2-4-6-8…"         → continuous_effort (fill progression_text)
 - "30 min low-intensity steady-state walk/hike/bike" or unstructured continuous work
                                                → continuous_effort with cap_seconds, progression_text=null
-- prose-only focus_note / lesson sections       → free
-`.trim();
+- prose-only focus_note / lesson sections      → free`;
 
-const SET_KIND_GUIDANCE = `
-Map each set line to set_kind from ${SET_KINDS.join(', ')} and reps_kind from ${REPS_KINDS.join(', ')}.
+const SET_KIND_GUIDANCE = `# Set kind & reps_kind mapping
+set_kind ∈ ${SET_KINDS.join(', ')}; reps_kind ∈ ${REPS_KINDS.join(', ')}.
 
 - "Warm-Up Set …"                              → set_kind=warmup
 - "Working Set 1 …" / "Working Set 4 - Max Unbroken"
@@ -81,11 +114,10 @@ Map each set line to set_kind from ${SET_KINDS.join(', ')} and reps_kind from ${
 - "30 sec"                                     → reps_kind=time, duration_seconds_min=30
 - "20-30 sec"                                  → reps_kind=time, duration_seconds_min=20 max=30
 - "10 reps/side"                               → per_side=true, reps_kind=per_side_fixed
-- "30m/side; 15m/side" carries                 → reps_kind=complex_unit, reps_text=verbatim
-`.trim();
+- "30m/side; 15m/side" carries                 → reps_kind=complex_unit, reps_text=verbatim`;
 
-const WEIGHT_REF_GUIDANCE = `
-weight_ref MUST be one of these objects (discriminated union on \`kind\`):
+const WEIGHT_REF_GUIDANCE = `# weight_ref discriminated union
+weight_ref MUST be one of these objects (discriminated on \`kind\`):
 
 - Set 1 weight reference  → { "kind": "relative_to_set", "target_position": 1 }
 - "70% of working weight" → { "kind": "percent_of_working", "percent": 70 }
@@ -98,10 +130,9 @@ weight_ref MUST be one of these objects (discriminated union on \`kind\`):
 - No weight prescribed (warmup mobility, plank holds, etc.)
                           → { "kind": "none" }
 
-Convert lb→kg via lb * 0.453592 → round to 2 decimals.
-`.trim();
+Convert lb→kg via lb * 0.453592 → round to 2 decimals.`;
 
-const MOVEMENT_NAME_GUIDANCE = `
+const MOVEMENT_NAME_GUIDANCE = `# Movement names, alternates, supersets
 movement_display_name is the EXACT verbatim string from the PDF, including
 qualifiers ("Right Leg", "Left Leg", "/side", "Male/Female"). Do NOT
 normalise plurals, capitalisation, or punctuation. Do NOT split unilateral
@@ -116,45 +147,27 @@ For "X or Y" alternates ("Strict Bar Dip or Ring Dip"):
 
 For "directly into" superset chains:
 - Set chained_into_next=true on the row whose rest is collapsed
-- The next exercise in the same group gets the rest after the chain
-`.trim();
+- The next exercise in the same group gets the rest after the chain`;
 
-export const SYSTEM_PROMPT = `You are a structured-data extractor for FBB Persist programming PDFs.
+// Final composition. Stable string — evaluated once at module load. NEVER
+// concatenate per-call data into this constant.
+export const SYSTEM_PROMPT = [
+  ROLE,
+  OUTPUT_RULES,
+  SECTION_KIND_GUIDANCE,
+  PRESCRIPTION_MODE_GUIDANCE,
+  SET_KIND_GUIDANCE,
+  WEIGHT_REF_GUIDANCE,
+  MOVEMENT_NAME_GUIDANCE,
+].join('\n\n');
 
-You will be given the raw text of a SINGLE day from a Persist weekly PDF and
-must produce a JSON object that matches the supplied schema EXACTLY. The
-schema mirrors a Postgres content schema; mismatches will be rejected.
+// -- Per-call user prompt ---------------------------------------------------
 
-Output rules (read carefully):
-1. EVERY enum field must be one of the listed values — never invent new ones.
-2. tempo strings are 4 characters in [0-9XA] only. If the source text is malformed,
-   leave tempo=null and put the verbatim string in rpe_text or notes.
-3. RPE numeric fields are 1..10. "RPE 9-10" → rpe_min=9, rpe_max=10.
-4. min/max range fields require min ≤ max.
-5. For "Loading Note:" / "Effort Note:" prose, attach to the group's loading_note /
-   effort_note. For "A) Daily Focus Note:" prose, populate sections[0].daily_focus_note
-   AND emit a coaching_notes[] entry with kind="focus".
-6. For "Short on Time? Remove X" hints, set short_on_time_directive on the section
-   AND group.short_on_time_remove=true on the targeted group.
-7. The orchestrator patches in scheduled_on, position, display_name, kind,
-   is_optional, week_position, day_position, raw_text, and cms_source_id —
-   these are NOT in the schema you fill. Focus only on sections + coaching_notes.
-
-${SECTION_KIND_GUIDANCE}
-
-${PRESCRIPTION_MODE_GUIDANCE}
-
-${SET_KIND_GUIDANCE}
-
-${WEIGHT_REF_GUIDANCE}
-
-${MOVEMENT_NAME_GUIDANCE}
-`;
-
+// User prompt = ALL dynamic data. The track/date/kind context block helps
+// the model interpret the raw text (e.g. knowing it's a lesson day vs a
+// workout day affects which mappings apply); the orchestrator patches all
+// of it onto the resulting day, so the LLM never needs to echo it back.
 export function buildUserPrompt(chunk: DayChunk): string {
-  // Metadata is *context* for interpreting the raw text (e.g. knowing it's a
-  // workout vs lesson, what family/cadence). The orchestrator patches all of
-  // it onto the resulting day, so the LLM never needs to echo it back.
   return [
     `# Day context`,
     `track: ${chunk.trackHeading} (${chunk.trackCode}; family=${chunk.family}, cadence=${chunk.cadence ?? '-'})`,
@@ -164,7 +177,7 @@ export function buildUserPrompt(chunk: DayChunk): string {
       ? `week_position=${chunk.weekPosition} day_position=${chunk.dayPosition}`
       : '',
     ``,
-    `# Day raw text (parse this into sections/groups/exercises/sets)`,
+    `# Day raw text`,
     chunk.rawText,
   ]
     .filter(Boolean)

@@ -22,6 +22,10 @@ export interface DayParseOutcome {
   metrics: {
     durationMs: number;
     tokensInput: number;
+    // Subset of `tokensInput` that hit the provider's prompt cache (Anthropic
+    // ephemeral cache, OpenAI auto-cache). Used to compute cost at the
+    // discounted cached rate.
+    tokensCachedInput: number;
     tokensOutput: number;
     attempts: number;
   };
@@ -33,6 +37,7 @@ export interface DayParseBatchResult {
     llmTotalMs: number;
     llmCalls: number;
     tokensInputTotal: number;
+    tokensCachedInputTotal: number;
     tokensOutputTotal: number;
     concurrency: number;
   };
@@ -93,6 +98,10 @@ export class DayParser {
 
     const llmTotalMs = Date.now() - startedAt;
     const tokensInputTotal = outcomes.reduce((s, o) => s + o.metrics.tokensInput, 0);
+    const tokensCachedInputTotal = outcomes.reduce(
+      (s, o) => s + o.metrics.tokensCachedInput,
+      0,
+    );
     const tokensOutputTotal = outcomes.reduce((s, o) => s + o.metrics.tokensOutput, 0);
 
     return {
@@ -101,6 +110,7 @@ export class DayParser {
         llmTotalMs,
         llmCalls: outcomes.length,
         tokensInputTotal,
+        tokensCachedInputTotal,
         tokensOutputTotal,
         concurrency,
       },
@@ -163,6 +173,7 @@ export class DayParser {
         metrics: {
           durationMs: Date.now() - startedAt,
           tokensInput: 0,
+          tokensCachedInput: 0,
           tokensOutput: 0,
           attempts: 0,
         },
@@ -201,6 +212,7 @@ export class DayParser {
         metrics: {
           durationMs: Date.now() - startedAt,
           tokensInput: 0,
+          tokensCachedInput: 0,
           tokensOutput: 0,
           attempts: 0,
         },
@@ -209,6 +221,7 @@ export class DayParser {
 
     let llm: ParsedDayLLM | null = null;
     let tokensInput = 0;
+    let tokensCachedInput = 0;
     let tokensOutput = 0;
 
     this.logger.info({
@@ -236,6 +249,20 @@ export class DayParser {
       llm = result.output as ParsedDayLLM;
       tokensInput = result.usage?.inputTokens ?? 0;
       tokensOutput = result.usage?.outputTokens ?? 0;
+      // Both providers report cached prefix hits via inputTokenDetails.
+      // AI SDK normalises this into `cachedInputTokens` (deprecated alias)
+      // and `inputTokenDetails.cacheReadTokens`. Read both with a safe
+      // fallback so older AI SDK versions stay supported.
+      const usage = result.usage as
+        | {
+            cachedInputTokens?: number;
+            inputTokenDetails?: { cacheReadTokens?: number };
+          }
+        | undefined;
+      tokensCachedInput =
+        usage?.inputTokenDetails?.cacheReadTokens ??
+        usage?.cachedInputTokens ??
+        0;
     } catch (err) {
       // Capture as much context as the AI SDK gives us. NoObjectGeneratedError
       // carries `text` (the raw model output that failed validation) and
@@ -299,6 +326,7 @@ export class DayParser {
         metrics: {
           durationMs: Date.now() - startedAt,
           tokensInput,
+          tokensCachedInput,
           tokensOutput,
           attempts: maxRetries + 1,
         },
@@ -327,6 +355,7 @@ export class DayParser {
       locator,
       sections: day.sections.length,
       tokensInput,
+      tokensCachedInput,
       tokensOutput,
       durationMs: Date.now() - startedAt,
     });
@@ -337,6 +366,7 @@ export class DayParser {
       metrics: {
         durationMs: Date.now() - startedAt,
         tokensInput,
+        tokensCachedInput,
         tokensOutput,
         attempts: 1,
       },

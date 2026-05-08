@@ -345,8 +345,13 @@ export const parseMetricsSchema = z.object({
   llm_total_ms: z.number(),
   llm_calls: z.number().int().nonnegative(),
   tokens_input_total: z.number().int().nonnegative(),
+  tokens_cached_input_total: z.number().int().nonnegative().optional(),
   tokens_output_total: z.number().int().nonnegative(),
   tokens_total: z.number().int().nonnegative(),
+  cost_input_usd: z.number().nonnegative().optional(),
+  cost_cached_input_usd: z.number().nonnegative().optional(),
+  cost_output_usd: z.number().nonnegative().optional(),
+  cost_total_usd: z.number().nonnegative().optional(),
   concurrency: z.number().int().positive(),
 });
 

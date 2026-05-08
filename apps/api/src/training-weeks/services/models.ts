@@ -28,6 +28,15 @@ import type {
 // you pass `temperature` to a reasoning model. The factory below picks the
 // right invocation per family.
 
+export interface ModelPricing {
+  // USD per million tokens. Cached-input applies when the request prefix
+  // matches a cached prompt (Anthropic ephemeral cache, OpenAI auto-cache).
+  // Both providers bill cached prefixes at a steep discount.
+  input_per_mtok_usd: number;
+  cached_input_per_mtok_usd: number;
+  output_per_mtok_usd: number;
+}
+
 export interface ModelCatalogEntry {
   spec: ModelSpec;
   display_name: string;
@@ -37,6 +46,10 @@ export interface ModelCatalogEntry {
   // Whether to set temperature=0. Reasoning models reject this; everyone else
   // benefits from determinism on a structured-output task.
   supports_temperature: boolean;
+  // Approximate published pricing as of 2026-05. Refresh from provider docs
+  // when a model is repriced — these numbers feed cost reporting in
+  // parse_metrics, so a stale entry will silently mislead cost comparisons.
+  pricing: ModelPricing;
 }
 
 export const DEFAULT_MODEL_SPEC: ModelSpec = {
@@ -51,32 +64,78 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
     display_name: 'OpenAI GPT-5.5 (reasoning)',
     supports_reasoning_effort: true,
     supports_temperature: false,
+    pricing: {
+      input_per_mtok_usd: 1.25,
+      cached_input_per_mtok_usd: 0.125,
+      output_per_mtok_usd: 10.0,
+    },
   },
   {
     spec: { provider: 'openai', model: 'gpt-4o-2024-11-20', reasoning_effort: null },
     display_name: 'OpenAI GPT-4o',
     supports_reasoning_effort: false,
     supports_temperature: true,
+    pricing: {
+      input_per_mtok_usd: 2.5,
+      cached_input_per_mtok_usd: 1.25,
+      output_per_mtok_usd: 10.0,
+    },
   },
   {
     spec: { provider: 'openai', model: 'gpt-4o-mini-2024-07-18', reasoning_effort: null },
     display_name: 'OpenAI GPT-4o mini',
     supports_reasoning_effort: false,
     supports_temperature: true,
+    pricing: {
+      input_per_mtok_usd: 0.15,
+      cached_input_per_mtok_usd: 0.075,
+      output_per_mtok_usd: 0.6,
+    },
   },
   {
     spec: { provider: 'anthropic', model: 'claude-sonnet-4-6', reasoning_effort: null },
     display_name: 'Claude Sonnet 4.6',
     supports_reasoning_effort: false,
     supports_temperature: true,
+    pricing: {
+      input_per_mtok_usd: 3.0,
+      cached_input_per_mtok_usd: 0.3,
+      output_per_mtok_usd: 15.0,
+    },
   },
   {
     spec: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', reasoning_effort: null },
     display_name: 'Claude Haiku 4.5',
     supports_reasoning_effort: false,
     supports_temperature: true,
+    pricing: {
+      input_per_mtok_usd: 1.0,
+      cached_input_per_mtok_usd: 0.1,
+      output_per_mtok_usd: 5.0,
+    },
   },
 ];
+
+// Pricing helper: returns USD given (input_total, output_total, cached_read).
+// Cached tokens are a *subset* of input_total — provider usage objects
+// already report `inputTokens` (pre-cache) and `cachedInputTokens` separately,
+// so the uncached portion is `inputTokens - cachedInputTokens`.
+export function computeCostUsd(
+  pricing: ModelPricing,
+  tokens: { input: number; output: number; cachedInput: number },
+): { input: number; cached: number; output: number; total: number } {
+  const uncachedInput = Math.max(0, tokens.input - tokens.cachedInput);
+  const inputCost = (uncachedInput * pricing.input_per_mtok_usd) / 1_000_000;
+  const cachedCost =
+    (tokens.cachedInput * pricing.cached_input_per_mtok_usd) / 1_000_000;
+  const outputCost = (tokens.output * pricing.output_per_mtok_usd) / 1_000_000;
+  return {
+    input: inputCost,
+    cached: cachedCost,
+    output: outputCost,
+    total: inputCost + cachedCost + outputCost,
+  };
+}
 
 export function findCatalogEntry(spec: ModelSpec): ModelCatalogEntry | null {
   // Match on provider+model, ignoring reasoning_effort (the picker carries
@@ -143,11 +202,19 @@ export function resolveModel(input: ResolveModelInput): ResolvedModel {
     // with union types" on `auto`. `outputFormat` mode tells the model to
     // emit JSON in the text response; AI SDK then validates with our Zod
     // schema. Same end result, no provider-side schema-shape limit.
+    //
+    // cacheControl on the system message marks our (large, byte-stable)
+    // SYSTEM_PROMPT as ephemeral-cacheable. First call writes the cache, the
+    // remaining 49+ days hit it. Cached input tokens bill at ~10% of the
+    // standard rate so per-upload input cost drops dramatically.
     return {
       model: anthropic(spec.model),
       catalog,
       providerOptions: {
-        anthropic: { structuredOutputMode: 'outputFormat' },
+        anthropic: {
+          structuredOutputMode: 'outputFormat',
+          cacheControl: { type: 'ephemeral' },
+        },
       },
       applyTemperatureZero: catalog.supports_temperature,
     };

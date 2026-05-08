@@ -174,6 +174,8 @@ export class UploadJobsService implements OnApplicationBootstrap {
         tokensTotal: sql<number>`coalesce((${uploadJobs.resultPayload}->'parse_metrics'->>'tokens_total')::int, 0)`,
         tokensInputTotal: sql<number>`coalesce((${uploadJobs.resultPayload}->'parse_metrics'->>'tokens_input_total')::int, 0)`,
         tokensOutputTotal: sql<number>`coalesce((${uploadJobs.resultPayload}->'parse_metrics'->>'tokens_output_total')::int, 0)`,
+        tokensCachedInputTotal: sql<number>`coalesce((${uploadJobs.resultPayload}->'parse_metrics'->>'tokens_cached_input_total')::int, 0)`,
+        costTotalUsd: sql<number>`coalesce((${uploadJobs.resultPayload}->'parse_metrics'->>'cost_total_usd')::numeric, 0)::float8`,
         modelSpec: sql<unknown>`${uploadJobs.resultPayload}->'parse_metrics'->'model_spec'`,
       })
       .from(uploadJobs)
@@ -191,6 +193,8 @@ export class UploadJobsService implements OnApplicationBootstrap {
       tokens_total: r.tokensTotal,
       tokens_input_total: r.tokensInputTotal,
       tokens_output_total: r.tokensOutputTotal,
+      tokens_cached_input_total: r.tokensCachedInputTotal,
+      cost_total_usd: r.costTotalUsd,
       model_spec: (r.modelSpec as ModelSpec | null) ?? null,
       uploaded_at: r.createdAt.toISOString(),
       finished_at: r.finishedAt?.toISOString() ?? null,
@@ -289,6 +293,8 @@ export interface UploadJobSummary {
   tokens_total: number;
   tokens_input_total: number;
   tokens_output_total: number;
+  tokens_cached_input_total: number;
+  cost_total_usd: number;
   model_spec: ModelSpec | null;
   uploaded_at: string;
   finished_at: string | null;

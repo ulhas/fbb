@@ -150,7 +150,11 @@ export function UploadJobsTable({
             return <span className="text-[12px] text-ink-muted">—</span>
           // Native title tooltip — cheap, accessible, and the breakdown is
           // secondary info that doesn't warrant a popover library.
-          const tip = `Input ${r.tokens_input_total.toLocaleString()} · Output ${r.tokens_output_total.toLocaleString()}`
+          const cachedSuffix =
+            r.tokens_cached_input_total > 0
+              ? ` (${r.tokens_cached_input_total.toLocaleString()} cached)`
+              : ''
+          const tip = `Input ${r.tokens_input_total.toLocaleString()}${cachedSuffix} · Output ${r.tokens_output_total.toLocaleString()}`
           return (
             <span
               className="tabular-nums font-mono text-[12px] text-ink-muted underline decoration-dotted decoration-ink-muted/40 underline-offset-2"
@@ -160,6 +164,19 @@ export function UploadJobsTable({
             </span>
           )
         },
+      },
+      {
+        id: 'cost_total_usd',
+        accessorKey: 'cost_total_usd',
+        header: 'Cost',
+        cell: ({ row }) =>
+          row.original.cost_total_usd > 0 ? (
+            <span className="tabular-nums font-mono text-[12px] text-ink">
+              {formatUsd(row.original.cost_total_usd)}
+            </span>
+          ) : (
+            <span className="text-[12px] text-ink-muted">—</span>
+          ),
       },
       {
         id: 'uploaded_at',
@@ -255,6 +272,14 @@ export function UploadJobsTable({
       </table>
     </div>
   )
+}
+
+// Sub-cent precision for cheap models (gpt-4o-mini), three decimals for the
+// dollar-range so a $3.42 run doesn't render as "$3.4200".
+function formatUsd(usd: number): string {
+  if (usd >= 0.1) return `$${usd.toFixed(3)}`
+  if (usd >= 0.001) return `$${usd.toFixed(4)}`
+  return `$${usd.toFixed(6)}`
 }
 
 function SortIndicator({ sort }: { sort: 'asc' | 'desc' | false }) {

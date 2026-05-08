@@ -193,8 +193,17 @@ export interface ParseMetrics {
   llm_total_ms: number;
   llm_calls: number;
   tokens_input_total: number;
+  // Subset of input tokens that hit the prompt cache (cheaper rate). Older
+  // payloads predate this field — treat missing as 0.
+  tokens_cached_input_total?: number;
   tokens_output_total: number;
   tokens_total: number;
+  // Cost computed from model pricing × token usage (cached input billed at
+  // the discounted cached rate). Optional so older payloads still validate.
+  cost_input_usd?: number;
+  cost_cached_input_usd?: number;
+  cost_output_usd?: number;
+  cost_total_usd?: number;
   concurrency: number;
 }
 
@@ -355,6 +364,12 @@ export interface UploadJobSummary {
   tokens_total: number;
   tokens_input_total: number;
   tokens_output_total: number;
+  // Subset of input tokens that hit the prompt cache. 0 for jobs that
+  // predate caching wiring.
+  tokens_cached_input_total: number;
+  // USD cost computed from model pricing × token usage. 0 when the model
+  // isn't in the catalog or for older jobs.
+  cost_total_usd: number;
   // ModelSpec the run actually used. Null for older jobs (pre-multi-provider).
   model_spec: ModelSpec | null;
   uploaded_at: string;

@@ -427,6 +427,12 @@ function SummaryPanel({
               value={
                 <span className="font-mono tabular-nums">
                   {metrics.tokens_input_total.toLocaleString()}
+                  {metrics.tokens_cached_input_total &&
+                  metrics.tokens_cached_input_total > 0 ? (
+                    <span className="ml-1 text-[11px] text-ink-muted">
+                      ({metrics.tokens_cached_input_total.toLocaleString()} cached)
+                    </span>
+                  ) : null}
                 </span>
               }
             />
@@ -437,6 +443,32 @@ function SummaryPanel({
               value={
                 <span className="font-mono tabular-nums">
                   {metrics.tokens_output_total.toLocaleString()}
+                </span>
+              }
+            />
+          ) : null}
+          {metrics?.cost_total_usd != null && metrics.cost_total_usd > 0 ? (
+            <Row
+              label="Cost"
+              value={
+                <span
+                  className="font-mono tabular-nums underline decoration-dotted decoration-ink-muted/40 underline-offset-2"
+                  title={[
+                    metrics.cost_input_usd != null
+                      ? `Input ${formatUsd(metrics.cost_input_usd)}`
+                      : null,
+                    metrics.cost_cached_input_usd != null &&
+                    metrics.cost_cached_input_usd > 0
+                      ? `Cached ${formatUsd(metrics.cost_cached_input_usd)}`
+                      : null,
+                    metrics.cost_output_usd != null
+                      ? `Output ${formatUsd(metrics.cost_output_usd)}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                >
+                  {formatUsd(metrics.cost_total_usd)}
                 </span>
               }
             />
@@ -485,6 +517,12 @@ function SummaryPanel({
       </section>
     </aside>
   )
+}
+
+function formatUsd(usd: number): string {
+  if (usd >= 0.1) return `$${usd.toFixed(3)}`
+  if (usd >= 0.001) return `$${usd.toFixed(4)}`
+  return `$${usd.toFixed(6)}`
 }
 
 function Row({

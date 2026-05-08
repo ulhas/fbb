@@ -167,6 +167,27 @@ function ColumnPanel({
           label="LLM time"
           value={formatMs(record.parse_metrics?.llm_total_ms)}
         />
+        <Stat
+          label="Cost"
+          value={
+            record.parse_metrics?.cost_total_usd
+              ? formatUsd(record.parse_metrics.cost_total_usd)
+              : '—'
+          }
+        />
+        <Stat
+          label="Cached"
+          value={
+            record.parse_metrics?.tokens_cached_input_total
+              ? `${record.parse_metrics.tokens_cached_input_total.toLocaleString()} tok`
+              : '—'
+          }
+          tone={
+            record.parse_metrics?.tokens_cached_input_total
+              ? 'success'
+              : undefined
+          }
+        />
       </dl>
 
       <WarningsList warnings={record.parse_warnings} />
@@ -357,6 +378,12 @@ function formatMs(ms: number | undefined): string {
   if (!ms) return '—'
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(1)}s`
+}
+
+function formatUsd(usd: number): string {
+  if (usd >= 0.1) return `$${usd.toFixed(3)}`
+  if (usd >= 0.001) return `$${usd.toFixed(4)}`
+  return `$${usd.toFixed(6)}`
 }
 
 function Empty() {

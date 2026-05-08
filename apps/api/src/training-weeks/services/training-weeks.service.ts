@@ -15,6 +15,7 @@ import { DayParser } from './day.parser';
 import { PdfTextService } from './pdf-text.service';
 import { parseToc } from './toc.parser';
 import { classifyTrack, segment } from './document.segmenter';
+import { computeCostUsd, findCatalogEntry } from './models';
 import { TrainingWeekPersister } from './training-week.persister';
 import { UploadJobsService } from './upload-jobs.service';
 
@@ -311,6 +312,21 @@ export class TrainingWeeksService {
       ...newWarnings.filter((w) => !succeededLocators.has(w.locator)),
     ];
 
+    // Cumulative totals after this retry round.
+    const totalInput =
+      (existing?.parse_metrics?.tokens_input_total ?? 0) +
+      batch.metrics.tokensInputTotal;
+    const totalCachedInput =
+      (existing?.parse_metrics?.tokens_cached_input_total ?? 0) +
+      batch.metrics.tokensCachedInputTotal;
+    const totalOutput =
+      (existing?.parse_metrics?.tokens_output_total ?? 0) +
+      batch.metrics.tokensOutputTotal;
+    const retryCost = this.costFor(modelSpec, {
+      input: totalInput,
+      cachedInput: totalCachedInput,
+      output: totalOutput,
+    });
     const merged: UploadResponseDto = {
       request_id: existing?.request_id ?? requestId,
       document: existing?.document ?? null,
@@ -325,12 +341,13 @@ export class TrainingWeeksService {
           (existing?.parse_metrics?.llm_total_ms ?? 0) + batch.metrics.llmTotalMs,
         llm_calls:
           (existing?.parse_metrics?.llm_calls ?? 0) + batch.metrics.llmCalls,
-        tokens_input_total:
-          (existing?.parse_metrics?.tokens_input_total ?? 0) +
-          batch.metrics.tokensInputTotal,
-        tokens_output_total:
-          (existing?.parse_metrics?.tokens_output_total ?? 0) +
-          batch.metrics.tokensOutputTotal,
+        tokens_input_total: totalInput,
+        tokens_cached_input_total: totalCachedInput,
+        tokens_output_total: totalOutput,
+        cost_input_usd: retryCost?.input,
+        cost_cached_input_usd: retryCost?.cached,
+        cost_output_usd: retryCost?.output,
+        cost_total_usd: retryCost?.total,
         tokens_total:
           (existing?.parse_metrics?.tokens_total ?? 0) +
           batch.metrics.tokensInputTotal +
@@ -502,6 +519,11 @@ export class TrainingWeeksService {
       chunks: segResult.chunks,
     });
 
+    const cost = this.costFor(modelSpec, {
+      input: batch.metrics.tokensInputTotal,
+      cachedInput: batch.metrics.tokensCachedInputTotal,
+      output: batch.metrics.tokensOutputTotal,
+    });
     const metrics: ParseMetrics = {
       model: modelSpec.model,
       model_spec: modelSpec,
@@ -511,8 +533,13 @@ export class TrainingWeeksService {
       llm_total_ms: batch.metrics.llmTotalMs,
       llm_calls: batch.metrics.llmCalls,
       tokens_input_total: batch.metrics.tokensInputTotal,
+      tokens_cached_input_total: batch.metrics.tokensCachedInputTotal,
       tokens_output_total: batch.metrics.tokensOutputTotal,
       tokens_total: batch.metrics.tokensInputTotal + batch.metrics.tokensOutputTotal,
+      cost_input_usd: cost?.input,
+      cost_cached_input_usd: cost?.cached,
+      cost_output_usd: cost?.output,
+      cost_total_usd: cost?.total,
       concurrency: batch.metrics.concurrency,
     };
 
@@ -533,6 +560,19 @@ export class TrainingWeeksService {
       parse_warnings: warnings,
       parse_metrics: metrics,
     };
+  }
+
+  // Cost from token usage + the model's catalog pricing. Returns null when
+  // the model isn't in the catalog (e.g. an env override pointing at an
+  // unrecognised model id) — caller persists undefined cost fields in that
+  // case rather than misleading zeros.
+  private costFor(
+    spec: ModelSpec,
+    tokens: { input: number; cachedInput: number; output: number },
+  ): { input: number; cached: number; output: number; total: number } | null {
+    const entry = findCatalogEntry(spec);
+    if (!entry) return null;
+    return computeCostUsd(entry.pricing, tokens);
   }
 
   private crossCheckTocVsBody(
