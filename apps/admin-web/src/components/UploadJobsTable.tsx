@@ -121,14 +121,22 @@ export function UploadJobsTable({
         id: 'tokens_total',
         accessorKey: 'tokens_total',
         header: 'Tokens',
-        cell: ({ row }) =>
-          row.original.tokens_total > 0 ? (
-            <span className="tabular-nums font-mono text-[12px] text-ink-muted">
-              {row.original.tokens_total.toLocaleString()}
+        cell: ({ row }) => {
+          const r = row.original
+          if (r.tokens_total <= 0)
+            return <span className="text-[12px] text-ink-muted">—</span>
+          // Native title tooltip — cheap, accessible, and the breakdown is
+          // secondary info that doesn't warrant a popover library.
+          const tip = `Input ${r.tokens_input_total.toLocaleString()} · Output ${r.tokens_output_total.toLocaleString()}`
+          return (
+            <span
+              className="tabular-nums font-mono text-[12px] text-ink-muted underline decoration-dotted decoration-ink-muted/40 underline-offset-2"
+              title={tip}
+            >
+              {r.tokens_total.toLocaleString()}
             </span>
-          ) : (
-            <span className="text-[12px] text-ink-muted">—</span>
-          ),
+          )
+        },
       },
       {
         id: 'uploaded_at',

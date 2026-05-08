@@ -350,6 +350,8 @@ export interface UploadJobSummary {
   day_count: number;
   warning_count: number;
   tokens_total: number;
+  tokens_input_total: number;
+  tokens_output_total: number;
   uploaded_at: string;
   finished_at: string | null;
   error: string | null;

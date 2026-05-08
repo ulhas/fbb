@@ -7,7 +7,7 @@ import 'react-pdf/dist/Page/TextLayer.css'
 import { uploadJobPdfUrl } from '../../api/upload-jobs'
 import { Badge } from '../../components/ui/Badge'
 import { useUploadJob } from '../../hooks/useUploadJobs'
-import type { ParseWarning, UploadJobStatus } from '@fbb/types'
+import type { ParseMetrics, ParseWarning, UploadJobStatus } from '@fbb/types'
 
 // Bundle the worker through Vite so we don't ship a public/ asset. The worker
 // must match the pdfjs-dist version that react-pdf re-exports as `pdfjs`,
@@ -65,7 +65,6 @@ function UploadJobDetailPage() {
 
   const tracks = record.document?.tracks ?? []
   const dayCount = tracks.reduce((s, t) => s + t.days.length, 0)
-  const tokensTotal = record.parse_metrics?.tokens_total ?? 0
 
   return (
     <>
@@ -91,9 +90,6 @@ function UploadJobDetailPage() {
           {record.parse_warnings.length > 0 ? (
             <Badge tone="warning">⚠ {record.parse_warnings.length} warnings</Badge>
           ) : null}
-          {tokensTotal > 0 ? (
-            <Badge tone="neutral">{tokensTotal.toLocaleString()} tokens</Badge>
-          ) : null}
         </div>
       </div>
 
@@ -111,6 +107,7 @@ function UploadJobDetailPage() {
           uploadedAt={record.uploaded_at}
           finishedAt={record.finished_at}
           dryRunOnly={record.dry_run_only}
+          metrics={record.parse_metrics}
         />
       </div>
     </>
@@ -187,12 +184,14 @@ function SummaryPanel({
   uploadedAt,
   finishedAt,
   dryRunOnly,
+  metrics,
 }: {
   warnings: ParseWarning[]
   weekStartsOn: string | null
   uploadedAt: string
   finishedAt: string | null
   dryRunOnly: boolean
+  metrics: ParseMetrics | null
 }) {
   return (
     <aside className="flex flex-col gap-4">
@@ -217,6 +216,26 @@ function SummaryPanel({
                 >
                   {weekStartsOn}
                 </Link>
+              }
+            />
+          ) : null}
+          {metrics && metrics.tokens_input_total > 0 ? (
+            <Row
+              label="Input tokens"
+              value={
+                <span className="font-mono tabular-nums">
+                  {metrics.tokens_input_total.toLocaleString()}
+                </span>
+              }
+            />
+          ) : null}
+          {metrics && metrics.tokens_output_total > 0 ? (
+            <Row
+              label="Output tokens"
+              value={
+                <span className="font-mono tabular-nums">
+                  {metrics.tokens_output_total.toLocaleString()}
+                </span>
               }
             />
           ) : null}

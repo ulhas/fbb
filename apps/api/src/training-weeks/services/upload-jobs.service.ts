@@ -171,6 +171,8 @@ export class UploadJobsService implements OnApplicationBootstrap {
         ), 0)::int`,
         warningCount: sql<number>`coalesce(jsonb_array_length(${uploadJobs.resultPayload}->'parse_warnings'), 0)::int`,
         tokensTotal: sql<number>`coalesce((${uploadJobs.resultPayload}->'parse_metrics'->>'tokens_total')::int, 0)`,
+        tokensInputTotal: sql<number>`coalesce((${uploadJobs.resultPayload}->'parse_metrics'->>'tokens_input_total')::int, 0)`,
+        tokensOutputTotal: sql<number>`coalesce((${uploadJobs.resultPayload}->'parse_metrics'->>'tokens_output_total')::int, 0)`,
       })
       .from(uploadJobs)
       .orderBy(desc(uploadJobs.createdAt))
@@ -185,6 +187,8 @@ export class UploadJobsService implements OnApplicationBootstrap {
       day_count: r.dayCount,
       warning_count: r.warningCount,
       tokens_total: r.tokensTotal,
+      tokens_input_total: r.tokensInputTotal,
+      tokens_output_total: r.tokensOutputTotal,
       uploaded_at: r.createdAt.toISOString(),
       finished_at: r.finishedAt?.toISOString() ?? null,
       error: r.errorMessage,
