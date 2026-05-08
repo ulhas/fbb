@@ -17,6 +17,7 @@ import {
   PARSE_DAY_SLUG,
   SystemPromptsService,
 } from '../../system-prompts/system-prompts.service';
+import { cleanDayTextForLlm } from './clean-day-text';
 import { DEFAULT_MODEL_SPEC, resolveModel, type ResolvedModel } from './models';
 import type { DayChunk } from './document.segmenter';
 
@@ -239,6 +240,13 @@ export class DayParser {
     let tokensCachedInput = 0;
     let tokensOutput = 0;
 
+    // Strip PDF noise (date heading, week-day line, URLs, page footers,
+    // boilerplate copyright) before the LLM sees the text. The persisted
+    // day record keeps `chunk.rawText` intact for audit; the trimmed copy
+    // is *only* used for the call below.
+    const cleanedRawText = cleanDayTextForLlm(chunk.rawText, chunk);
+    const llmChunk: DayChunk = { ...chunk, rawText: cleanedRawText };
+
     this.logger.info({
       msg: 'day.parse.start',
       requestId,
@@ -246,6 +254,7 @@ export class DayParser {
       index,
       kind: chunk.kind,
       rawTextChars: chunk.rawText.length,
+      cleanedTextChars: cleanedRawText.length,
       provider: modelSpec.provider,
       model: modelSpec.model,
       reasoningEffort: modelSpec.reasoning_effort,
@@ -256,7 +265,7 @@ export class DayParser {
         model: resolved.model,
         output: Output.object({ schema: parsedDayLLMSchema }),
         system: systemPromptBody,
-        prompt: buildUserPrompt(chunk),
+        prompt: buildUserPrompt(llmChunk),
         ...(resolved.applyTemperatureZero ? { temperature: 0 } : {}),
         maxRetries,
         providerOptions: resolved.providerOptions,
