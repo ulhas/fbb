@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 
 import { DatabaseModule } from '../database/database.module';
 import { RequestIdMiddleware } from '../logger/request-id.middleware';
+import { SystemPromptsModule } from '../system-prompts/system-prompts.module';
 import { UploadJobsController } from '../upload-jobs/upload-jobs.controller';
 import { AdminGuard } from './admin.guard';
 import { DayParser } from './services/day.parser';
@@ -23,7 +24,7 @@ import { UploadJobsService } from './services/upload-jobs.service';
 // UploadJobsService). Folder layout follows URL prefix to keep the controllers
 // independently discoverable.
 @Module({
-  imports: [ConfigModule, DatabaseModule],
+  imports: [ConfigModule, DatabaseModule, SystemPromptsModule],
   controllers: [TrainingWeeksController, UploadJobsController],
   providers: [
     AdminGuard,

@@ -1,5 +1,6 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel } from 'ai';
 
 // Mirrors `SharedV3ProviderOptions` from @ai-sdk/provider — it isn't re-
@@ -58,6 +59,8 @@ export const DEFAULT_MODEL_SPEC: ModelSpec = {
   reasoning_effort: 'medium',
 };
 
+// Pricing for Kimi K2 thinking-turbo as of 2026-05 (rough — refresh from
+// platform.moonshot.ai). Listed in USD/Mtok at the global API rate.
 export const MODEL_CATALOG: ModelCatalogEntry[] = [
   {
     spec: { provider: 'openai', model: 'gpt-5.5-2026-04-23', reasoning_effort: 'medium' },
@@ -114,6 +117,22 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
       output_per_mtok_usd: 5.0,
     },
   },
+  {
+    // Kimi K2.6 (kimi-k2-thinking-turbo) — Moonshot's reasoning model.
+    // OpenAI-compatible endpoint, structured outputs supported.
+    spec: { provider: 'moonshot', model: 'kimi-k2-thinking-turbo', reasoning_effort: null },
+    display_name: 'Kimi K2.6 (thinking-turbo)',
+    supports_reasoning_effort: false,
+    supports_temperature: true,
+    pricing: {
+      input_per_mtok_usd: 0.6,
+      // Moonshot offers automatic context caching but pricing varies; treat
+      // cached at half the input rate as a conservative estimate. Refresh
+      // from platform.moonshot.ai when a more accurate number lands.
+      cached_input_per_mtok_usd: 0.3,
+      output_per_mtok_usd: 2.5,
+    },
+  },
 ];
 
 // Pricing helper: returns USD given (input_total, output_total, cached_read).
@@ -160,6 +179,8 @@ export interface ResolveModelInput {
   spec: ModelSpec;
   openaiApiKey: string | undefined;
   anthropicApiKey: string | undefined;
+  moonshotApiKey: string | undefined;
+  moonshotBaseUrl: string | undefined;
 }
 
 // Pure factory — no NestJS dependency, no IO. Throws when the requested
@@ -187,6 +208,30 @@ export function resolveModel(input: ResolveModelInput): ResolvedModel {
       model: openai(spec.model),
       catalog,
       providerOptions,
+      applyTemperatureZero: catalog.supports_temperature,
+    };
+  }
+
+  if (spec.provider === 'moonshot') {
+    if (!input.moonshotApiKey) {
+      throw new Error('MOONSHOT_API_KEY is not configured');
+    }
+    if (!input.moonshotBaseUrl) {
+      throw new Error('MOONSHOT_BASE_URL is not configured');
+    }
+    // Kimi/Moonshot is OpenAI-API-compatible, including tool-call structured
+    // outputs. The default `auto` mode in createOpenAICompatible picks tool
+    // calling, which Kimi handles fine for our schema (it doesn't have the
+    // 16-union limit Anthropic enforces).
+    const moonshot = createOpenAICompatible({
+      name: 'moonshot',
+      apiKey: input.moonshotApiKey,
+      baseURL: input.moonshotBaseUrl,
+    });
+    return {
+      model: moonshot(spec.model),
+      catalog,
+      providerOptions: {},
       applyTemperatureZero: catalog.supports_temperature,
     };
   }

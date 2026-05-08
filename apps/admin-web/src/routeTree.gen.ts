@@ -13,9 +13,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as UsersIndexRouteImport } from './routes/users/index'
 import { Route as UploadJobsIndexRouteImport } from './routes/upload-jobs/index'
 import { Route as TrainingWeeksIndexRouteImport } from './routes/training-weeks/index'
+import { Route as SystemPromptsIndexRouteImport } from './routes/system-prompts/index'
 import { Route as UploadJobsCompareRouteImport } from './routes/upload-jobs/compare'
 import { Route as UploadJobsIdRouteImport } from './routes/upload-jobs/$id'
 import { Route as TrainingWeeksWeekStartsOnRouteImport } from './routes/training-weeks/$weekStartsOn'
+import { Route as SystemPromptsSlugRouteImport } from './routes/system-prompts/$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -37,6 +39,11 @@ const TrainingWeeksIndexRoute = TrainingWeeksIndexRouteImport.update({
   path: '/training-weeks/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SystemPromptsIndexRoute = SystemPromptsIndexRouteImport.update({
+  id: '/system-prompts/',
+  path: '/system-prompts/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UploadJobsCompareRoute = UploadJobsCompareRouteImport.update({
   id: '/upload-jobs/compare',
   path: '/upload-jobs/compare',
@@ -53,21 +60,30 @@ const TrainingWeeksWeekStartsOnRoute =
     path: '/training-weeks/$weekStartsOn',
     getParentRoute: () => rootRouteImport,
   } as any)
+const SystemPromptsSlugRoute = SystemPromptsSlugRouteImport.update({
+  id: '/system-prompts/$slug',
+  path: '/system-prompts/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/system-prompts/$slug': typeof SystemPromptsSlugRoute
   '/training-weeks/$weekStartsOn': typeof TrainingWeeksWeekStartsOnRoute
   '/upload-jobs/$id': typeof UploadJobsIdRoute
   '/upload-jobs/compare': typeof UploadJobsCompareRoute
+  '/system-prompts/': typeof SystemPromptsIndexRoute
   '/training-weeks/': typeof TrainingWeeksIndexRoute
   '/upload-jobs/': typeof UploadJobsIndexRoute
   '/users/': typeof UsersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/system-prompts/$slug': typeof SystemPromptsSlugRoute
   '/training-weeks/$weekStartsOn': typeof TrainingWeeksWeekStartsOnRoute
   '/upload-jobs/$id': typeof UploadJobsIdRoute
   '/upload-jobs/compare': typeof UploadJobsCompareRoute
+  '/system-prompts': typeof SystemPromptsIndexRoute
   '/training-weeks': typeof TrainingWeeksIndexRoute
   '/upload-jobs': typeof UploadJobsIndexRoute
   '/users': typeof UsersIndexRoute
@@ -75,9 +91,11 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/system-prompts/$slug': typeof SystemPromptsSlugRoute
   '/training-weeks/$weekStartsOn': typeof TrainingWeeksWeekStartsOnRoute
   '/upload-jobs/$id': typeof UploadJobsIdRoute
   '/upload-jobs/compare': typeof UploadJobsCompareRoute
+  '/system-prompts/': typeof SystemPromptsIndexRoute
   '/training-weeks/': typeof TrainingWeeksIndexRoute
   '/upload-jobs/': typeof UploadJobsIndexRoute
   '/users/': typeof UsersIndexRoute
@@ -86,27 +104,33 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/system-prompts/$slug'
     | '/training-weeks/$weekStartsOn'
     | '/upload-jobs/$id'
     | '/upload-jobs/compare'
+    | '/system-prompts/'
     | '/training-weeks/'
     | '/upload-jobs/'
     | '/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/system-prompts/$slug'
     | '/training-weeks/$weekStartsOn'
     | '/upload-jobs/$id'
     | '/upload-jobs/compare'
+    | '/system-prompts'
     | '/training-weeks'
     | '/upload-jobs'
     | '/users'
   id:
     | '__root__'
     | '/'
+    | '/system-prompts/$slug'
     | '/training-weeks/$weekStartsOn'
     | '/upload-jobs/$id'
     | '/upload-jobs/compare'
+    | '/system-prompts/'
     | '/training-weeks/'
     | '/upload-jobs/'
     | '/users/'
@@ -114,9 +138,11 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SystemPromptsSlugRoute: typeof SystemPromptsSlugRoute
   TrainingWeeksWeekStartsOnRoute: typeof TrainingWeeksWeekStartsOnRoute
   UploadJobsIdRoute: typeof UploadJobsIdRoute
   UploadJobsCompareRoute: typeof UploadJobsCompareRoute
+  SystemPromptsIndexRoute: typeof SystemPromptsIndexRoute
   TrainingWeeksIndexRoute: typeof TrainingWeeksIndexRoute
   UploadJobsIndexRoute: typeof UploadJobsIndexRoute
   UsersIndexRoute: typeof UsersIndexRoute
@@ -152,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrainingWeeksIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/system-prompts/': {
+      id: '/system-prompts/'
+      path: '/system-prompts'
+      fullPath: '/system-prompts/'
+      preLoaderRoute: typeof SystemPromptsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/upload-jobs/compare': {
       id: '/upload-jobs/compare'
       path: '/upload-jobs/compare'
@@ -173,14 +206,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrainingWeeksWeekStartsOnRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/system-prompts/$slug': {
+      id: '/system-prompts/$slug'
+      path: '/system-prompts/$slug'
+      fullPath: '/system-prompts/$slug'
+      preLoaderRoute: typeof SystemPromptsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SystemPromptsSlugRoute: SystemPromptsSlugRoute,
   TrainingWeeksWeekStartsOnRoute: TrainingWeeksWeekStartsOnRoute,
   UploadJobsIdRoute: UploadJobsIdRoute,
   UploadJobsCompareRoute: UploadJobsCompareRoute,
+  SystemPromptsIndexRoute: SystemPromptsIndexRoute,
   TrainingWeeksIndexRoute: TrainingWeeksIndexRoute,
   UploadJobsIndexRoute: UploadJobsIndexRoute,
   UsersIndexRoute: UsersIndexRoute,

@@ -324,7 +324,7 @@ export const parseWarningSchema = z.object({
 export type ParseWarning = z.infer<typeof parseWarningSchema>;
 
 export const modelSpecSchema = z.object({
-  provider: z.enum(['openai', 'anthropic']),
+  provider: z.enum(['openai', 'anthropic', 'moonshot']),
   model: z.string(),
   reasoning_effort: z
     .enum(['minimal', 'low', 'medium', 'high'])

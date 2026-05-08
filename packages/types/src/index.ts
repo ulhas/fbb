@@ -397,7 +397,11 @@ export interface UploadJobDetail {
 // only applies to OpenAI's reasoning models (gpt-5/o-series); ignored
 // elsewhere. Persisted on each upload-job's parse_metrics so reparse runs
 // can be compared.
-export type ModelProvider = 'openai' | 'anthropic';
+// Routes to the right SDK adapter:
+//   - openai      → @ai-sdk/openai
+//   - anthropic   → @ai-sdk/anthropic
+//   - moonshot    → @ai-sdk/openai-compatible (Kimi: api.moonshot.ai/v1)
+export type ModelProvider = 'openai' | 'anthropic' | 'moonshot';
 
 export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
 

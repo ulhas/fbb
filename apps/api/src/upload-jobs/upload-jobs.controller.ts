@@ -102,9 +102,13 @@ export class UploadJobsController {
         'model_spec is required and must include provider + model',
       );
     }
-    if (spec.provider !== 'openai' && spec.provider !== 'anthropic') {
+    if (
+      spec.provider !== 'openai' &&
+      spec.provider !== 'anthropic' &&
+      spec.provider !== 'moonshot'
+    ) {
       throw new BadRequestException(
-        `unknown provider: ${spec.provider}; expected one of openai|anthropic`,
+        `unknown provider: ${spec.provider}; expected one of openai|anthropic|moonshot`,
       );
     }
     try {

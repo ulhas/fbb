@@ -36,6 +36,13 @@
       "when": 1778089927427,
       "tag": "0004_lyrical_titanium_man",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778217347075,
+      "tag": "0005_young_cassandra_nova",
+      "breakpoints": true
     }
   ]
 }

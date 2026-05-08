@@ -18,6 +18,11 @@ export default () => ({
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY,
   },
+  moonshot: {
+    // Kimi/Moonshot uses an OpenAI-compatible API.
+    apiKey: process.env.MOONSHOT_API_KEY,
+    baseUrl: process.env.MOONSHOT_BASE_URL ?? 'https://api.moonshot.ai/v1',
+  },
   parser: {
     // Sample PDFs are <1MB; 10MB cap leaves ample headroom for bulkier weeks.
     maxUploadBytes: parseInt(process.env.PARSER_MAX_UPLOAD_BYTES ?? `${10 * 1024 * 1024}`, 10),

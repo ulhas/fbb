@@ -12,7 +12,11 @@ import {
   type ParsedDayLLM,
   type ParseWarning,
 } from '../schemas/parsed-document.schema';
-import { SYSTEM_PROMPT, buildUserPrompt } from '../prompts/parse-day.prompt';
+import { buildUserPrompt } from '../prompts/parse-day.prompt';
+import {
+  PARSE_DAY_SLUG,
+  SystemPromptsService,
+} from '../../system-prompts/system-prompts.service';
 import { DEFAULT_MODEL_SPEC, resolveModel, type ResolvedModel } from './models';
 import type { DayChunk } from './document.segmenter';
 
@@ -47,6 +51,7 @@ export interface DayParseBatchResult {
 export class DayParser {
   constructor(
     private readonly configService: ConfigService,
+    private readonly systemPrompts: SystemPromptsService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {}
 
@@ -64,6 +69,12 @@ export class DayParser {
     const limit = pLimit(concurrency);
     const startedAt = Date.now();
 
+    // Read the active prompt body once per batch. The service caches in
+    // memory so this is effectively free across the 50× per-day calls.
+    const systemPromptBody = await this.systemPrompts.getActiveBody(
+      PARSE_DAY_SLUG,
+    );
+
     // Each scheduled task awaits the parse, optionally invokes the per-day
     // callback (which is where incremental persistence lands), then returns
     // the outcome to the caller. Errors in the callback are logged and
@@ -77,6 +88,7 @@ export class DayParser {
             i,
             requestId,
             modelSpec,
+            systemPromptBody,
           );
           if (onDayComplete) {
             try {
@@ -141,6 +153,7 @@ export class DayParser {
     index: number,
     requestId: string | undefined,
     modelSpec: ModelSpec,
+    systemPromptBody: string,
   ): Promise<DayParseOutcome> {
     const locator = `${chunk.trackCode}/${chunk.scheduledOn}`;
     const startedAt = Date.now();
@@ -189,6 +202,8 @@ export class DayParser {
         spec: modelSpec,
         openaiApiKey: this.configService.get<string>('openai.apiKey'),
         anthropicApiKey: this.configService.get<string>('anthropic.apiKey'),
+        moonshotApiKey: this.configService.get<string>('moonshot.apiKey'),
+        moonshotBaseUrl: this.configService.get<string>('moonshot.baseUrl'),
       });
     } catch (err) {
       this.logger.error({
@@ -240,7 +255,7 @@ export class DayParser {
       const result = await generateText({
         model: resolved.model,
         output: Output.object({ schema: parsedDayLLMSchema }),
-        system: SYSTEM_PROMPT,
+        system: systemPromptBody,
         prompt: buildUserPrompt(chunk),
         ...(resolved.applyTemperatureZero ? { temperature: 0 } : {}),
         maxRetries,
