@@ -22,6 +22,12 @@ import type {
   ParsedSet,
 } from '../schemas/parsed-document.schema';
 
+export interface UnderparsedDayRef {
+  track_code: string;
+  scheduled_on: string;
+  display_name: string;
+}
+
 export interface TrainingWeekSummaryRow {
   week_starts_on: string;
   week_ends_on: string;
@@ -32,6 +38,9 @@ export interface TrainingWeekSummaryRow {
   // Days that *should* have exercises but don't — the actionable list. Rest /
   // mobility / lesson days are excluded since they legitimately lack exercises.
   underparsed_day_count: number;
+  // The underparsed days themselves so the admin UI can offer one-click
+  // navigation to each from the table — no extra fetch needed for the popover.
+  underparsed_days: UnderparsedDayRef[];
   // Tracks share `position` and `kind` within a calendar week (programmed
   // together), so the aggregate coalesces to a single value via max(); null
   // only if the week has no microcycles (shouldn't happen for a row that
@@ -123,11 +132,17 @@ export class TrainingWeeksReadService {
           dayId: days.id,
           microcycleId: days.microcycleId,
           kind: days.kind,
+          scheduledOn: days.scheduledOn,
+          displayName: days.displayName,
+          trackCode: tracks.code,
           exerciseCount: sql<number>`count(${prescribedExercises.id})::int`.as(
             'exercise_count',
           ),
         })
         .from(days)
+        .innerJoin(microcycles, eq(microcycles.id, days.microcycleId))
+        .innerJoin(programs, eq(programs.id, microcycles.programId))
+        .innerJoin(tracks, eq(tracks.id, programs.trackId))
         .leftJoin(sections, eq(sections.dayId, days.id))
         .leftJoin(
           prescribedGroups,
@@ -137,7 +152,14 @@ export class TrainingWeeksReadService {
           prescribedExercises,
           eq(prescribedExercises.groupId, prescribedGroups.id),
         )
-        .groupBy(days.id, days.microcycleId, days.kind),
+        .groupBy(
+          days.id,
+          days.microcycleId,
+          days.kind,
+          days.scheduledOn,
+          days.displayName,
+          tracks.code,
+        ),
     );
 
     const rows = await this.database.db
@@ -149,6 +171,23 @@ export class TrainingWeeksReadService {
         dayCount: sql<number>`count(distinct ${dayExercises.dayId})::int`,
         parsedDayCount: sql<number>`(count(distinct ${dayExercises.dayId}) filter (where ${dayExercises.exerciseCount} > 0))::int`,
         underparsedDayCount: sql<number>`(count(distinct ${dayExercises.dayId}) filter (where ${dayExercises.exerciseCount} = 0 and ${dayExercises.kind} in ('workout', 'active_recovery')))::int`,
+        // Compact list of underparsed days for the admin "what's broken"
+        // popover — keeps everything in one query so the table doesn't have
+        // to refetch per row when expanded. coalesce(...) so the json column
+        // is always an array (never null) for a clean type contract.
+        underparsedDays: sql<UnderparsedDayRef[]>`coalesce(
+          jsonb_agg(
+            distinct jsonb_build_object(
+              'track_code', ${dayExercises.trackCode},
+              'scheduled_on', ${dayExercises.scheduledOn},
+              'display_name', ${dayExercises.displayName}
+            )
+          ) filter (
+            where ${dayExercises.exerciseCount} = 0
+              and ${dayExercises.kind} in ('workout', 'active_recovery')
+          ),
+          '[]'::jsonb
+        )`,
         // Tracks share position + kind within a calendar week (all programmed
         // together) — max() collapses the redundant rows; if a divergence
         // ever sneaks in we'll silently coalesce to one of them, which is
@@ -171,6 +210,11 @@ export class TrainingWeeksReadService {
       day_count: r.dayCount,
       parsed_day_count: r.parsedDayCount,
       underparsed_day_count: r.underparsedDayCount,
+      underparsed_days: (r.underparsedDays ?? []).slice().sort((a, b) =>
+        a.scheduled_on === b.scheduled_on
+          ? a.track_code.localeCompare(b.track_code)
+          : a.scheduled_on.localeCompare(b.scheduled_on),
+      ),
       week_position: r.weekPosition,
       microcycle_kind: r.microcycleKind,
       last_persisted_at: new Date(r.lastPersistedAt).toISOString(),

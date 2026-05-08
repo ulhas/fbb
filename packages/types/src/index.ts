@@ -248,6 +248,12 @@ export interface UploadStatusResponse {
 // from joining microcycles → days; `last_persisted_at` is the most recent
 // `microcycles.updated_at` for the week and tells the UI when this week last
 // changed.
+export interface UnderparsedDayRef {
+  track_code: string;
+  scheduled_on: string;
+  display_name: string;
+}
+
 export interface TrainingWeekSummary {
   week_starts_on: string;
   week_ends_on: string;
@@ -258,6 +264,9 @@ export interface TrainingWeekSummary {
   // Days that should have exercises (workout / active_recovery) but came back
   // empty. The actionable count for the admin's "needs reparse" stripe.
   underparsed_day_count: number;
+  // The actual underparsed days (track + date), so the admin "what's broken"
+  // popover can list them with one-click navigation. Empty when count == 0.
+  underparsed_days: UnderparsedDayRef[];
   // Week position within its mesocycle (1..N). Tracks share this within a
   // calendar week, so it's a single number per row.
   week_position: number | null;

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ColumnDef, SortingState } from '@tanstack/react-table'
 import {
   flexRender,
@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-table'
 import { useNavigate } from 'react-router-dom'
 
-import type { TrainingWeekSummary } from '@fbb/types'
+import type { TrainingWeekSummary, UnderparsedDayRef } from '@fbb/types'
 
 import { Badge } from './ui/Badge'
 
@@ -123,7 +123,11 @@ export function TrainingWeeksTable({
                 {parsed_day_count}/{day_count}
               </span>
               {underparsed_day_count > 0 ? (
-                <Badge tone="warning">⚠ {underparsed_day_count}</Badge>
+                <UnderparsedPopover
+                  weekStartsOn={row.original.week_starts_on}
+                  count={underparsed_day_count}
+                  days={row.original.underparsed_days}
+                />
               ) : null}
             </div>
           )
@@ -241,6 +245,124 @@ function SortIndicator({ sort }: { sort: 'asc' | 'desc' | false }) {
   if (sort === 'asc') return <span className="text-fbb-orange">↑</span>
   if (sort === 'desc') return <span className="text-fbb-orange">↓</span>
   return null
+}
+
+function UnderparsedPopover({
+  weekStartsOn,
+  count,
+  days,
+}: {
+  weekStartsOn: string
+  count: number
+  days: UnderparsedDayRef[]
+}) {
+  const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  // Click-outside / Escape close. Cheap inline implementation — adding a real
+  // popover library felt heavy for a single use site.
+  useEffect(() => {
+    if (!open) return
+    function onDocClick(e: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false)
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  // Cluster by date for compact display (one row per date with the affected
+  // tracks listed underneath). Server already sorts by date then track.
+  const grouped = useMemo(() => {
+    const m = new Map<string, UnderparsedDayRef[]>()
+    for (const d of days) {
+      const list = m.get(d.scheduled_on) ?? []
+      list.push(d)
+      m.set(d.scheduled_on, list)
+    }
+    return [...m.entries()]
+  }, [days])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen((v) => !v)
+        }}
+        aria-label={`${count} underparsed day${count === 1 ? '' : 's'} — click for details`}
+        aria-expanded={open}
+        className="cursor-pointer"
+      >
+        <Badge tone="warning">⚠ {count}</Badge>
+      </button>
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="Underparsed days"
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-0 top-full z-20 mt-1 w-[320px] rounded-md border border-divider bg-card p-3 shadow-lg"
+        >
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-secondary">
+            Days needing reparse
+          </div>
+          <ul className="flex flex-col gap-1.5">
+            {grouped.map(([scheduled, refs]) => (
+              <li key={scheduled}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setOpen(false)
+                    navigate(
+                      `/training-weeks/${weekStartsOn}?day=${scheduled}`,
+                    )
+                  }}
+                  className="flex w-full cursor-pointer items-start justify-between gap-3 rounded-md px-2 py-1.5 text-left hover:bg-fbb-orange-tint/40"
+                >
+                  <div className="flex min-w-0 flex-col">
+                    <span className="text-[13px] font-semibold text-ink">
+                      {formatDate(scheduled)}
+                    </span>
+                    <span className="truncate text-[11px] text-ink-muted">
+                      {refs.map((r) => r.track_code).join(', ')}
+                    </span>
+                  </div>
+                  <span className="shrink-0 text-[11px] text-fbb-orange">→</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 border-t border-divider pt-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setOpen(false)
+                navigate(`/training-weeks/${weekStartsOn}`)
+              }}
+              className="cursor-pointer text-[12px] font-semibold text-fbb-orange hover:text-fbb-orange-dark"
+            >
+              View week details →
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function TrashIcon() {
